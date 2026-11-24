@@ -26,7 +26,12 @@
     .err { padding: 10px; border-radius: 8px; background: #7f1d1d; color: #fee2e2; margin: 8px 0; display: none; }
     .key-box { background: #020617; border: 1px dashed #22c55e; padding: 10px; border-radius: 8px; color: #4ade80; font-weight: bold; word-break: break-all; margin-top: 8px; }
     .key-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+    .key-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+    .key-check { width: auto; margin: 0; cursor: pointer; transform: scale(1.15); }
     .key-code { font-family: monospace; color: #4ade80; word-break: break-all; font-size: 14px; }
+    .key-age { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+    .toolbar button { margin: 0; padding: 7px 10px; font-size: 13px; width: auto; }
   </style>
 </head>
 <body>
@@ -63,6 +68,9 @@
         <div style="font-size:13px; color:#94a3b8; margin-top:4px;">
           Nhập số lượng từ 20 key trở lên: <span id="bulkCalcText" style="color:#38bdf8; font-weight:bold;">0đ</span>
         </div>
+        <div style="font-size:12px; color:#94a3b8; margin-top:2px;">
+          Key chưa bán tự động xóa sau 30 ngày kể từ lúc nhập kho.
+        </div>
         <input id="bulkQtyInput" type="number" min="20" step="1" placeholder="Nhập số lượng key (VD: 20)" oninput="updateBulkCalc()" />
         <button class="green" onclick="buyBulkKeys()">Mua tùy chọn</button>
       </div>
@@ -90,7 +98,7 @@
     <div class="box" id="adminArea" style="display:none;">
       <h2>🛠️ Quản lý kho Key (Admin)</h2>
       <p style="font-size:13px; color:#94a3b8; margin-top:0;">
-        Mẹo: Khi chạy thật nên khóa quyền ghi/đọc nhạy cảm trong Firestore Rules.
+        Key chưa bán tự động xóa sau 30 ngày kể từ lúc nhập kho. Mẹo: Khi chạy thật nên khóa quyền ghi/đọc nhạy cảm trong Firestore Rules.
       </p>
 
       <h3>1. Tạo gói Key mới</h3>
@@ -103,7 +111,13 @@
       <textarea id="keysTextarea" rows="5" placeholder="KEY-111&#10;KEY-222&#10;KEY-333"></textarea>
       <button onclick="importKeys()">Nhập Key vào kho gói</button>
 
-      <h3 style="margin-top:16px;">3. Key chưa bán trong gói đang chọn</h3>
+      <h3 style="margin-top:16px;">3. Xem &amp; lọc key chưa bán trong gói đang chọn</h3>
+      <input id="pkgSearchInput" type="text" placeholder="Tìm nhanh mã key trong gói..." oninput="filterAdminKeys('pkg')" />
+      <div class="toolbar">
+        <button class="gray" onclick="toggleSelectAll('pkg', true)">Chọn hết</button>
+        <button class="gray" onclick="toggleSelectAll('pkg', false)">Bỏ chọn</button>
+        <button class="red" onclick="deleteSelectedKeys('pkg')">Xóa key đã chọn</button>
+      </div>
       <div id="adminKeysList">Đang tải danh sách key...</div>
 
       <div class="item" style="margin-top:18px; border-color:#22c55e;">
@@ -114,7 +128,13 @@
         <textarea id="bulkKeysTextarea" rows="5" placeholder="KEY-SI-001&#10;KEY-SI-002&#10;KEY-SI-003"></textarea>
         <button class="green" onclick="importBulkKeys()">Nhập Key vào kho Tùy chọn</button>
 
-        <h3 style="margin-top:14px; font-size:15px;">Danh sách key chưa bán trong kho Tùy chọn</h3>
+        <h3 style="margin-top:14px; font-size:15px;">Xem &amp; lọc key chưa bán trong kho Tùy chọn</h3>
+        <input id="bulkSearchInput" type="text" placeholder="Tìm nhanh mã key trong kho Tùy chọn..." oninput="filterAdminKeys('bulk')" />
+        <div class="toolbar">
+          <button class="gray" onclick="toggleSelectAll('bulk', true)">Chọn hết</button>
+          <button class="gray" onclick="toggleSelectAll('bulk', false)">Bỏ chọn</button>
+          <button class="red" onclick="deleteSelectedKeys('bulk')">Xóa key đã chọn</button>
+        </div>
         <div id="adminBulkKeysList">Đang tải key tùy chọn...</div>
       </div>
 
@@ -155,6 +175,8 @@
     const BULK_PRODUCT_ID = "bulk_400";
     const BULK_MIN_QTY = 20;
     const BULK_UNIT_PRICE = 400;
+    const KEY_TTL_DAYS = 30;
+    const KEY_TTL_MS = KEY_TTL_DAYS * 24 * 60 * 60 * 1000;
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -181,6 +203,49 @@
       msg.style.display = "none";
       el.textContent = text;
       el.style.display = "block";
+    }
+
+    function getCreatedAtMs(data) {
+      const ts = data && data.createdAt;
+      if (!ts) return null;
+      if (typeof ts.toMillis === "function") return ts.toMillis();
+      if (typeof ts.seconds === "number") return ts.seconds * 1000;
+      const parsed = new Date(ts).getTime();
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function isExpiredKey(data) {
+      const createdMs = getCreatedAtMs(data);
+      if (!createdMs) return false;
+      return (Date.now() - createdMs) >= KEY_TTL_MS;
+    }
+
+    function formatKeyAgeText(data) {
+      const createdMs = getCreatedAtMs(data);
+      if (!createdMs) return "Mới nhập / không có mốc ngày";
+      const elapsedMs = Math.max(0, Date.now() - createdMs);
+      const daysElapsed = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
+      const daysLeft = Math.max(0, KEY_TTL_DAYS - Math.floor(elapsedMs / (24 * 60 * 60 * 1000)));
+      return `Đã lưu ${daysElapsed} ngày • Còn ~${daysLeft} ngày tự xóa`;
+    }
+
+    async function getActiveUnsoldKeys(productId) {
+      const snap = await getDocs(
+        query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false))
+      );
+      const validDocs = [];
+      for (const docSnap of snap.docs) {
+        if (isExpiredKey(docSnap.data())) {
+          try {
+            await deleteDoc(doc(db, "keys", docSnap.id));
+          } catch (_) {
+            // Bỏ qua nếu Firestore Rules chặn xóa trực tiếp từ client thường
+          }
+        } else {
+          validDocs.push(docSnap);
+        }
+      }
+      return validDocs;
     }
 
     window.updateBulkCalc = function() {
@@ -282,6 +347,75 @@
       await loadOrders();
     });
 
+    function buildKeyRowsHtml(docsList, scope) {
+      let html = "";
+      docsList.forEach((docSnap) => {
+        const k = docSnap.data();
+        const codeText = String(k.code || "");
+        const safeCode = codeText.replace(/'/g, "");
+        const ageText = formatKeyAgeText(k);
+        html += `
+          <div class="key-row" data-code="${codeText.toLowerCase()}">
+            <div class="key-left">
+              <input type="checkbox" class="key-check key-cb-${scope}" value="${docSnap.id}" />
+              <div>
+                <div class="key-code">${codeText}</div>
+                <div class="key-age">${ageText}</div>
+              </div>
+            </div>
+            <button class="red" style="width:auto; margin:0; padding:6px 12px; font-size:13px;" onclick="deleteKey('${docSnap.id}', '${safeCode}')">
+              Xóa
+            </button>
+          </div>
+        `;
+      });
+      return html;
+    }
+
+    window.filterAdminKeys = function(scope) {
+      const inputId = scope === "bulk" ? "bulkSearchInput" : "pkgSearchInput";
+      const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
+      const kw = (document.getElementById(inputId)?.value || "").trim().toLowerCase();
+      const rows = document.querySelectorAll(`#${listId} .key-row`);
+      rows.forEach((row) => {
+        const code = row.getAttribute("data-code") || "";
+        row.style.display = (!kw || code.includes(kw)) ? "flex" : "none";
+      });
+    };
+
+    window.toggleSelectAll = function(scope, checked) {
+      const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
+      const rows = document.querySelectorAll(`#${listId} .key-row`);
+      rows.forEach((row) => {
+        if (row.style.display === "none") return;
+        const cb = row.querySelector("input[type='checkbox']");
+        if (cb) cb.checked = checked;
+      });
+    };
+
+    window.deleteSelectedKeys = async function(scope) {
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.");
+      const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
+      const checkedBoxes = [...document.querySelectorAll(`#${listId} input.key-cb-${scope}:checked`)];
+
+      if (checkedBoxes.length === 0) {
+        return showErr("Hãy tích chọn ít nhất 1 key (những key nhập nhầm hoặc hết hạn) để xóa.");
+      }
+
+      if (!confirm(`Xóa ${checkedBoxes.length} key đã chọn khỏi kho?`)) return;
+
+      try {
+        for (const cb of checkedBoxes) {
+          await deleteDoc(doc(db, "keys", cb.value));
+        }
+        showMsg(`Đã xóa ${checkedBoxes.length} key khỏi kho.`);
+        await loadProducts();
+        await loadBulkStock();
+      } catch (e) {
+        showErr("Lỗi xóa hàng loạt: " + e.message);
+      }
+    };
+
     window.adminAddBalance = async function() {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền cộng số dư.");
 
@@ -342,10 +476,8 @@
     };
 
     async function loadBulkStock() {
-      const snap = await getDocs(
-        query(collection(db, "keys"), where("productId", "==", BULK_PRODUCT_ID), where("sold", "==", false))
-      );
-      const count = snap.size;
+      const validDocs = await getActiveUnsoldKeys(BULK_PRODUCT_ID);
+      const count = validDocs.length;
       const badge = document.getElementById("bulkStockBadge");
       if (badge) badge.textContent = `Kho sỉ: ${count} key`;
 
@@ -355,23 +487,11 @@
         if (adminCountText) adminCountText.textContent = `${count} key`;
 
         if (adminListEl) {
-          if (snap.empty) {
+          if (validDocs.length === 0) {
             adminListEl.innerHTML = "<div style='color:#94a3b8; font-size:14px;'>Kho tùy chọn hiện chưa có key nào.</div>";
           } else {
-            let html = "";
-            snap.forEach((docSnap) => {
-              const k = docSnap.data();
-              const safeCode = String(k.code || "").replace(/'/g, "");
-              html += `
-                <div class="key-row">
-                  <span class="key-code">${k.code}</span>
-                  <button class="red" style="width:auto; margin:0; padding:6px 12px; font-size:13px;" onclick="deleteKey('${docSnap.id}', '${safeCode}')">
-                    Xóa key
-                  </button>
-                </div>
-              `;
-            });
-            adminListEl.innerHTML = html;
+            adminListEl.innerHTML = buildKeyRowsHtml(validDocs, "bulk");
+            filterAdminKeys("bulk");
           }
         }
       }
@@ -399,10 +519,8 @@
         const price = Number(p.price || 0);
         const safeName = String(p.name || "").replace(/'/g, "");
 
-        const stockSnap = await getDocs(
-          query(collection(db, "keys"), where("productId", "==", d.id), where("sold", "==", false))
-        );
-        const stockCount = stockSnap.size;
+        const validStockDocs = await getActiveUnsoldKeys(d.id);
+        const stockCount = validStockDocs.length;
 
         const delProdBtn = adminMode
           ? `<button class="red" style="margin-top:4px; padding:7px 10px; font-size:13px;" onclick="deleteProduct('${d.id}', '${safeName}')">Xóa gói</button>`
@@ -448,30 +566,15 @@
         return;
       }
 
-      const snap = await getDocs(
-        query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false))
-      );
+      const validDocs = await getActiveUnsoldKeys(productId);
 
-      if (snap.empty) {
+      if (validDocs.length === 0) {
         listEl.innerHTML = "<div style='color:#94a3b8; font-size:14px;'>Gói này hiện không có key chưa bán nào.</div>";
         return;
       }
 
-      let html = "";
-      snap.forEach((docSnap) => {
-        const k = docSnap.data();
-        const safeCode = String(k.code || "").replace(/'/g, "");
-        html += `
-          <div class="key-row">
-            <span class="key-code">${k.code}</span>
-            <button class="red" style="width:auto; margin:0; padding:6px 12px; font-size:13px;" onclick="deleteKey('${docSnap.id}', '${safeCode}')">
-              Xóa key
-            </button>
-          </div>
-        `;
-      });
-
-      listEl.innerHTML = html;
+      listEl.innerHTML = buildKeyRowsHtml(validDocs, "pkg");
+      filterAdminKeys("pkg");
     };
 
     window.deleteProduct = async function(productId, productName) {
@@ -526,7 +629,7 @@
           });
         }
         document.getElementById("bulkKeysTextarea").value = "";
-        showMsg(`Đã nhập thành công ${lines.length} key vào kho Tùy chọn!`);
+        showMsg(`Đã nhập thành công ${lines.length} key vào kho Tùy chọn (tự xóa sau ${KEY_TTL_DAYS} ngày)!`);
         await loadBulkStock();
       } catch (e) {
         showErr("Lỗi nhập key Tùy chọn: " + e.message);
@@ -549,20 +652,16 @@
       }
 
       try {
-        const stockQ = query(
-          collection(db, "keys"),
-          where("productId", "==", BULK_PRODUCT_ID),
-          where("sold", "==", false),
-          limit(qty)
-        );
-        const stockSnap = await getDocs(stockQ);
+        const validStockDocs = await getActiveUnsoldKeys(BULK_PRODUCT_ID);
 
-        if (stockSnap.size < qty) {
-          return showErr(`Kho tùy chọn hiện chỉ còn ${stockSnap.size} key chưa bán, không đủ ${qty} key.`);
+        if (validStockDocs.length < qty) {
+          await loadBulkStock();
+          return showErr(`Kho tùy chọn hiện chỉ còn ${validStockDocs.length} key chưa bán còn hạn, không đủ ${qty} key.`);
         }
 
+        const selectedDocs = validStockDocs.slice(0, qty);
         const boughtKeys = [];
-        for (const keyDoc of stockSnap.docs) {
+        for (const keyDoc of selectedDocs) {
           const kData = keyDoc.data();
           boughtKeys.push(kData.code);
 
@@ -607,19 +706,14 @@
       }
 
       try {
-        const stockQ = query(
-          collection(db, "keys"),
-          where("productId", "==", productId),
-          where("sold", "==", false),
-          limit(1)
-        );
-        const stockSnap = await getDocs(stockQ);
+        const validStockDocs = await getActiveUnsoldKeys(productId);
 
-        if (stockSnap.empty) {
-          return showErr("Gói này đã hết key trong kho!");
+        if (validStockDocs.length === 0) {
+          await loadProducts();
+          return showErr("Gói này đã hết key còn hạn trong kho!");
         }
 
-        const keyDoc = stockSnap.docs[0];
+        const keyDoc = validStockDocs[0];
         const keyCode = keyDoc.data().code;
         const newBalance = currentBalance - price;
 
@@ -717,7 +811,7 @@
           });
         }
         document.getElementById("keysTextarea").value = "";
-        showMsg(`Đã nhập thành công ${lines.length} key vào kho!`);
+        showMsg(`Đã nhập thành công ${lines.length} key vào kho (tự xóa sau ${KEY_TTL_DAYS} ngày)!`);
         await loadProducts();
       } catch (e) {
         showErr("Lỗi nhập key: " + e.message);
