@@ -117,6 +117,16 @@
         <h3 style="margin-top:14px; font-size:15px;">Danh sách key chưa bán trong kho Tùy chọn</h3>
         <div id="adminBulkKeysList">Đang tải key tùy chọn...</div>
       </div>
+
+      <div class="item" style="margin-top:18px; border-color:#38bdf8;">
+        <h3 style="color:#38bdf8; margin-bottom:6px;">5. Cộng số dư cho tài khoản (Chỉ Admin)</h3>
+        <div style="font-size:13px; color:#94a3b8; margin-bottom:6px;">
+          Nhập Email tài khoản hoặc mã CK dạng <b>NAP1234ABCD</b> (có thể cộng cho chính bạn hoặc bất kỳ ai).
+        </div>
+        <input id="targetUserInput" type="text" placeholder="Email hoặc mã NAP... (VD: htheanh817@gmail.com hoặc NAP1234ABCD)" />
+        <input id="addAmountInput" type="number" step="1" placeholder="Số tiền cộng VNĐ (VD: 50000)" />
+        <button class="green" onclick="adminAddBalance()">+ Cộng số dư</button>
+      </div>
     </div>
   </div>
 
@@ -271,6 +281,65 @@
       await loadBulkStock();
       await loadOrders();
     });
+
+    window.adminAddBalance = async function() {
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền cộng số dư.");
+
+      const rawTarget = document.getElementById("targetUserInput").value.trim();
+      const amount = Number(document.getElementById("addAmountInput").value);
+
+      if (!rawTarget) return showErr("Nhập Email hoặc mã NAP... của tài khoản cần cộng tiền.");
+      if (!Number.isFinite(amount) || amount === 0) return showErr("Nhập số tiền hợp lệ (khác 0).");
+
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        let targetDoc = null;
+
+        const cleanInput = rawTarget.toLowerCase();
+        const napMatch = rawTarget.toUpperCase().match(/NAP\s*([A-Z0-9]{4,})/);
+        const napCode = napMatch ? napMatch[1] : null;
+
+        for (const uDoc of usersSnap.docs) {
+          const uData = uDoc.data();
+          const uEmail = String(uData.email || "").toLowerCase();
+          const uidPrefix = uDoc.id.slice(0, 8).toUpperCase();
+
+          if (
+            uEmail === cleanInput ||
+            uDoc.id.toLowerCase() === cleanInput ||
+            (napCode && uDoc.id.toUpperCase().startsWith(napCode)) ||
+            rawTarget.toUpperCase() === uidPrefix
+          ) {
+            targetDoc = uDoc;
+            break;
+          }
+        }
+
+        if (!targetDoc) {
+          return showErr(`Không tìm thấy tài khoản nào khớp với "${rawTarget}".`);
+        }
+
+        const oldBalance = Number(targetDoc.data().balance || 0);
+        const newBalance = oldBalance + amount;
+
+        await updateDoc(doc(db, "users", targetDoc.id), {
+          balance: newBalance
+        });
+
+        if (currentUser && targetDoc.id === currentUser.uid) {
+          currentBalance = newBalance;
+          renderUserBar();
+        }
+
+        const targetLabel = targetDoc.data().email || targetDoc.id;
+        document.getElementById("addAmountInput").value = "";
+        showMsg(
+          `Đã cập nhật số dư cho ${targetLabel}: ${oldBalance.toLocaleString("vi-VN")}đ -> ${newBalance.toLocaleString("vi-VN")}đ (${amount > 0 ? "+" : ""}${amount.toLocaleString("vi-VN")}đ).`
+        );
+      } catch (e) {
+        showErr("Lỗi cộng số dư: " + e.message);
+      }
+    };
 
     async function loadBulkStock() {
       const snap = await getDocs(
