@@ -25,7 +25,7 @@
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #334155; font-size: 12px; }
     .msg { padding: 10px; border-radius: 8px; background: #14532d; color: #dcfce7; margin: 8px 0; display: none; }
     .err { padding: 10px; border-radius: 8px; background: #7f1d1d; color: #fee2e2; margin: 8px 0; display: none; }
-    .key-box { background: #020617; border: 1px dashed #22c55e; padding: 10px; border-radius: 8px; color: #4ade80; font-weight: bold; word-break: break-all; margin-top: 8px; font-family: monospace; white-space: pre-wrap; }
+    .key-box { background: #020617; border: 1px dashed #22c55e; padding: 10px; border-radius: 8px; color: #4ade80; font-weight: bold; word-break: break-all; margin-top: 8px; font-family: monospace; white-space: pre-line; line-height: 1.55; }
     .order-time { font-size: 12px; color: #94a3b8; margin-top: 4px; }
     .order-actions { display: flex; gap: 8px; margin-top: 8px; }
     .order-actions button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; }
@@ -48,7 +48,7 @@
     .modal-card { width: 100%; max-width: 480px; background: #1e293b; border: 1px solid #22c55e; border-radius: 14px; padding: 18px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); }
     .modal-title { color: #4ade80; font-size: 18px; font-weight: bold; margin: 0 0 6px; }
     .modal-sub { color: #cbd5e1; font-size: 13px; margin-bottom: 10px; }
-    .modal-key-box { background: #020617; border: 1px dashed #4ade80; border-radius: 10px; padding: 12px; color: #4ade80; font-family: monospace; font-size: 14px; font-weight: bold; word-break: break-all; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
+    .modal-key-box { background: #020617; border: 1px dashed #4ade80; border-radius: 10px; padding: 12px; color: #4ade80; font-family: monospace; font-size: 14px; font-weight: bold; word-break: break-all; white-space: pre-line; line-height: 1.55; max-height: 240px; overflow-y: auto; }
     .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
     .modal-actions button { margin: 0; flex: 1; }
   </style>
@@ -187,6 +187,13 @@
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
     let latestModalKeyText = "";
 
+    function formatKeysOnePerLine(rawText) {
+      const cleaned = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+      if (!cleaned) return "";
+      const parts = cleaned.split(/\s*\|\s*|\s*,\s*|\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      return parts.join("\n");
+    }
+
     window.addEventListener("error", function (ev) {
       const errEl = document.getElementById("errBox");
       if (errEl && ev && ev.message) {
@@ -213,7 +220,7 @@
     }
 
     function openKeyModal(productName, keyText, purchasedAtText) {
-      latestModalKeyText = String(keyText || "");
+      latestModalKeyText = formatKeysOnePerLine(keyText);
       const metaEl = document.getElementById("keyModalMeta");
       const codeEl = document.getElementById("keyModalCode");
       const backdrop = document.getElementById("keyModalBackdrop");
@@ -228,16 +235,17 @@
     }
 
     async function copyTextToClipboard(text) {
-      if (!text) return false;
+      const formatted = formatKeysOnePerLine(text);
+      if (!formatted) return false;
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(text);
+          await navigator.clipboard.writeText(formatted);
           return true;
         }
       } catch (e) {}
       try {
         const ta = document.createElement("textarea");
-        ta.value = text;
+        ta.value = formatted;
         ta.style.position = "fixed";
         ta.style.opacity = "0";
         document.body.appendChild(ta);
@@ -253,14 +261,14 @@
 
     async function copyModalKey() {
       const ok = await copyTextToClipboard(latestModalKeyText);
-      alert(ok ? "Đã copy key!" : "Không copy tự động được, hãy giữ tay để copy mã key.");
+      alert(ok ? "Đã copy key (mỗi key 1 dòng)!" : "Không copy tự động được, hãy giữ tay để copy mã key.");
     }
 
     async function copyOrderKey(encodedKey) {
       const decoded = decodeURIComponent(encodedKey || "");
       const ok = await copyTextToClipboard(decoded);
       if (ok) {
-        if (typeof window.showShopToast === "function") window.showShopToast("Đã copy mã key vào bộ nhớ tạm!");
+        if (typeof window.showShopToast === "function") window.showShopToast("Đã copy mã key (mỗi key 1 dòng)!");
         else alert("Đã copy mã key!");
       }
     }
@@ -351,6 +359,12 @@
       const daysElapsed = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
       const daysLeft = Math.max(0, KEY_TTL_DAYS - daysElapsed);
       return "Đã lưu " + daysElapsed + " ngày • Còn ~" + daysLeft + " ngày tự xóa";
+    }
+
+    function normalizeKeysLines(rawText) {
+      const cleaned = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+      if (!cleaned) return "";
+      return cleaned.split(/\s*\|\s*|\s*,\s*|\n+/).map(function (s) { return s.trim(); }).filter(Boolean).join("\n");
     }
 
     async function fetchAndCleanUnsoldKeysByProduct(productId) {
@@ -448,7 +462,9 @@
 
       authBox.style.display = "none";
       shopArea.style.display = "block";
-      if (adminBox) adminBox.style.display = isAdmin() ? "block" : "none";
+      if (adminBox) {
+        adminBox.style.display = isAdmin() ? "block" : "none";
+      }
 
       try {
         const userRef = doc(db, "users", user.uid);
@@ -778,7 +794,7 @@
         const boughtKeys = [];
         for (const keyDoc of selectedDocs) {
           const kData = keyDoc.data();
-          boughtKeys.push(kData.code);
+          boughtKeys.push(String(kData.code || "").trim());
 
           await updateDoc(doc(db, "keys", keyDoc.id), {
             sold: true,
@@ -792,7 +808,7 @@
         await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
 
         const productTitle = "Gói tùy chọn " + qty + " key (400đ/key)";
-        const joinedKeys = boughtKeys.join("\n");
+        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
         const nowText = new Date().toLocaleString("vi-VN");
 
         await addDoc(collection(db, "orders"), {
@@ -831,7 +847,7 @@
         }
 
         const keyDoc = validStockDocs[0];
-        const keyCode = keyDoc.data().code;
+        const keyCode = String(keyDoc.data().code || "").trim();
         const newBalance = currentBalance - price;
         const nowText = new Date().toLocaleString("vi-VN");
 
@@ -880,7 +896,7 @@
         const o = d.data();
         const sortMs = getTimestampMs(o.createdAt) || 0;
         const timeStr = o.purchasedAtText || formatPurchaseTime(o.createdAt);
-        const keyStr = String(o.keyCode || "");
+        const keyStr = normalizeKeysLines(o.keyCode || "");
         orderItems.push({
           sortMs: sortMs,
           productName: o.productName || "Gói Key",
