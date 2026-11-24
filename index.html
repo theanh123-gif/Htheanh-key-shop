@@ -70,7 +70,7 @@
     </div>
 
     <!-- KHU VỰC ADMIN -->
-    <div class="box">
+    <div class="box"id="adminArea"style="display:none;">
       <h2>🛠️ Quản lý kho Key (Admin)</h2>
       <p style="font-size:13px; color:#94a3b8; margin-top:0;">
         Mẹo: Khi chạy thật nên khóa quyền ghi/đọc nhạy cảm trong Firestore Rules.
@@ -178,6 +178,10 @@
 
       authBox.style.display = "none";
       shopArea.style.display = "block";
+const adminBox = document.getElementById("adminArea");
+if (adminBox) {
+  adminBox.style.display = user.email === "htheanh817@gmail.com" ? "block" : "none";
+}
 
       const userRef = doc(db, "users", user.uid);
       const snap = await getDoc(userRef);
