@@ -25,7 +25,10 @@
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #334155; font-size: 12px; }
     .msg { padding: 10px; border-radius: 8px; background: #14532d; color: #dcfce7; margin: 8px 0; display: none; }
     .err { padding: 10px; border-radius: 8px; background: #7f1d1d; color: #fee2e2; margin: 8px 0; display: none; }
-    .key-box { background: #020617; border: 1px dashed #22c55e; padding: 10px; border-radius: 8px; color: #4ade80; font-weight: bold; word-break: break-all; margin-top: 8px; }
+    .key-box { background: #020617; border: 1px dashed #22c55e; padding: 10px; border-radius: 8px; color: #4ade80; font-weight: bold; word-break: break-all; margin-top: 8px; font-family: monospace; white-space: pre-wrap; }
+    .order-time { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .order-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .order-actions button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; }
     .key-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
     .key-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
     .key-check { width: auto; margin: 0; cursor: pointer; transform: scale(1.15); }
@@ -33,53 +36,53 @@
     .key-age { font-size: 11px; color: #94a3b8; margin-top: 2px; }
     .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
     .toolbar button { margin: 0; padding: 7px 10px; font-size: 13px; width: auto; }
-    .lag-notice {
-      max-width: 680px;
-      margin: 0 auto 14px;
-      background: #451a03;
-      border: 1px solid #f59e0b;
-      color: #fef3c7;
-      border-radius: 12px;
-      padding: 14px;
-    }
+    .lag-notice { max-width: 680px; margin: 0 auto 14px; background: #451a03; border: 1px solid #f59e0b; color: #fef3c7; border-radius: 12px; padding: 14px; }
     .lag-title { font-weight: bold; color: #fbbf24; font-size: 15px; margin-bottom: 4px; }
     .lag-text { font-size: 14px; line-height: 1.45; }
     .lag-actions { display: flex; gap: 8px; margin-top: 10px; }
     .lag-actions button { margin: 0; padding: 8px 12px; font-size: 13px; width: auto; flex: 1; }
-    .bank-error-box {
-      background: #2a1215;
-      border: 1px solid #f87171;
-      border-radius: 10px;
-      padding: 14px;
-      color: #fecaca;
-      line-height: 1.5;
-    }
+    .bank-error-box { background: #2a1215; border: 1px solid #f87171; border-radius: 10px; padding: 14px; color: #fecaca; line-height: 1.5; }
     .bank-error-title { color: #f87171; font-weight: bold; font-size: 15px; margin-bottom: 6px; }
     .bank-contact-highlight { color: #38bdf8; font-weight: bold; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.82); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 9999; }
+    .modal-card { width: 100%; max-width: 480px; background: #1e293b; border: 1px solid #22c55e; border-radius: 14px; padding: 18px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); }
+    .modal-title { color: #4ade80; font-size: 18px; font-weight: bold; margin: 0 0 6px; }
+    .modal-sub { color: #cbd5e1; font-size: 13px; margin-bottom: 10px; }
+    .modal-key-box { background: #020617; border: 1px dashed #4ade80; border-radius: 10px; padding: 12px; color: #4ade80; font-family: monospace; font-size: 14px; font-weight: bold; word-break: break-all; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+    .modal-actions button { margin: 0; flex: 1; }
   </style>
 </head>
 <body>
 
-  <!-- THÔNG BÁO WEB HƠI LAG KHI MỚI VÀO -->
   <div id="lagNoticeBox" class="lag-notice" style="display:none;">
     <div class="lag-title">⚠️ Thông báo hệ thống</div>
-    <div class="lag-text">
-      Web hơi lag, khi nào thấy trong kho có key mới mua.
-    </div>
+    <div class="lag-text">Web hơi lag, khi nào thấy trong kho có key mới mua.</div>
     <div class="lag-actions">
       <button class="gray" onclick="closeLagNotice()">Đóng</button>
       <button onclick="snoozeLagNotice2h()">Đóng 2h</button>
     </div>
   </div>
 
+  <div id="keyModalBackdrop" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-title">🎉 Mua Key Thành Công!</div>
+      <div id="keyModalMeta" class="modal-sub"></div>
+      <div id="keyModalCode" class="modal-key-box"></div>
+      <div class="modal-actions">
+        <button class="green" onclick="copyModalKey()">📋 Copy Key</button>
+        <button class="gray" onclick="closeKeyModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+
   <div class="box">
     <h1>⚡ HTHEANH KEY SHOP</h1>
-    <div id="userBar">Đang tải...</div>
+    <div id="userBar">Chưa đăng nhập.</div>
     <div id="msgBox" class="msg"></div>
     <div id="errBox" class="err"></div>
   </div>
 
-  <!-- KHUNG ĐĂNG NHẬP / ĐĂNG KÝ -->
   <div id="authBox" class="box">
     <h2>Đăng nhập / Đăng ký</h2>
     <input id="emailInput" type="email" placeholder="Nhập Email của bạn..." />
@@ -90,7 +93,6 @@
     </div>
   </div>
 
-  <!-- KHUNG CHÍNH SAU KHI ĐĂNG NHẬP -->
   <div id="shopArea" style="display:none;">
     <div class="box">
       <h2>🛒 Danh sách gói Key</h2>
@@ -127,12 +129,9 @@
       <div id="ordersList">Chưa có đơn hàng nào.</div>
     </div>
 
-    <!-- KHU VỰC ADMIN -->
     <div class="box" id="adminArea" style="display:none;">
       <h2>🛠️ Quản lý kho Key (Admin)</h2>
-      <p style="font-size:13px; color:#94a3b8; margin-top:0;">
-        Key chưa bán tự động xóa sau 30 ngày kể từ lúc nhập kho. Mẹo: Khi chạy thật nên khóa quyền ghi/đọc nhạy cảm trong Firestore Rules.
-      </p>
+      <p style="font-size:13px; color:#94a3b8; margin-top:0;">Key chưa bán tự động xóa sau 30 ngày kể từ lúc nhập kho.</p>
 
       <h3>1. Tạo gói Key mới</h3>
       <input id="prodName" placeholder="Tên gói (VD: Key Quét Link Rương 1 Ngày)" />
@@ -174,7 +173,7 @@
       <div class="item" style="margin-top:18px; border-color:#38bdf8;">
         <h3 style="color:#38bdf8; margin-bottom:6px;">5. Cộng số dư cho tài khoản (Chỉ Admin)</h3>
         <div style="font-size:13px; color:#94a3b8; margin-bottom:6px;">
-          Nhập Email tài khoản hoặc mã UID/tên gợi nhớ (có thể cộng cho chính bạn hoặc bất kỳ ai).
+          Nhập Email tài khoản hoặc mã UID (có thể cộng cho chính bạn hoặc bất kỳ ai).
         </div>
         <input id="targetUserInput" type="text" placeholder="Email hoặc UID (VD: htheanh817@gmail.com)" />
         <input id="addAmountInput" type="number" step="1" placeholder="Số tiền cộng VNĐ (VD: 50000)" />
@@ -186,16 +185,21 @@
   <script>
     const LAG_SNOOZE_KEY = "htheanh_lag_notice_until_2h";
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+    let latestModalKeyText = "";
+
+    window.addEventListener("error", function (ev) {
+      const errEl = document.getElementById("errBox");
+      if (errEl && ev && ev.message) {
+        errEl.textContent = "Lỗi trang: " + ev.message;
+        errEl.style.display = "block";
+      }
+    });
 
     function initLagNotice() {
       const box = document.getElementById("lagNoticeBox");
       if (!box) return;
-      const snoozeUntil = Number(localStorage.getItem(LAG_SNOOZE_KEY) || 0);
-      if (Date.now() < snoozeUntil) {
-        box.style.display = "none";
-      } else {
-        box.style.display = "block";
-      }
+      const snoozeUntil = Number(localStorage.getItem(LAG_SNOOZE_KEY) || "0");
+      box.style.display = Date.now() < snoozeUntil ? "none" : "block";
     }
 
     function closeLagNotice() {
@@ -208,9 +212,61 @@
       closeLagNotice();
     }
 
+    function openKeyModal(productName, keyText, purchasedAtText) {
+      latestModalKeyText = String(keyText || "");
+      const metaEl = document.getElementById("keyModalMeta");
+      const codeEl = document.getElementById("keyModalCode");
+      const backdrop = document.getElementById("keyModalBackdrop");
+      if (metaEl) metaEl.textContent = productName + " • Thời gian mua: " + purchasedAtText;
+      if (codeEl) codeEl.textContent = latestModalKeyText;
+      if (backdrop) backdrop.style.display = "flex";
+    }
+
+    function closeKeyModal() {
+      const backdrop = document.getElementById("keyModalBackdrop");
+      if (backdrop) backdrop.style.display = "none";
+    }
+
+    async function copyTextToClipboard(text) {
+      if (!text) return false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (e) {}
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function copyModalKey() {
+      const ok = await copyTextToClipboard(latestModalKeyText);
+      alert(ok ? "Đã copy key!" : "Không copy tự động được, hãy giữ tay để copy mã key.");
+    }
+
+    async function copyOrderKey(encodedKey) {
+      const decoded = decodeURIComponent(encodedKey || "");
+      const ok = await copyTextToClipboard(decoded);
+      if (ok) {
+        if (typeof window.showShopToast === "function") window.showShopToast("Đã copy mã key vào bộ nhớ tạm!");
+        else alert("Đã copy mã key!");
+      }
+    }
+
     initLagNotice();
   </script>
-
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
@@ -219,7 +275,7 @@
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import {
       getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
-      collection, getDocs, query, where, limit, serverTimestamp
+      collection, getDocs, query, where, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -258,6 +314,8 @@
       el.style.display = "block";
     }
 
+    window.showShopToast = showMsg;
+
     function showErr(text) {
       const el = document.getElementById("errBox");
       const msg = document.getElementById("msgBox");
@@ -266,8 +324,7 @@
       el.style.display = "block";
     }
 
-    function getCreatedAtMs(data) {
-      const ts = data && data.createdAt;
+    function getTimestampMs(ts) {
       if (!ts) return null;
       if (typeof ts.toMillis === "function") return ts.toMillis();
       if (typeof ts.seconds === "number") return ts.seconds * 1000;
@@ -275,22 +332,28 @@
       return Number.isFinite(parsed) ? parsed : null;
     }
 
+    function formatPurchaseTime(ts) {
+      const ms = getTimestampMs(ts);
+      if (!ms) return new Date().toLocaleString("vi-VN");
+      return new Date(ms).toLocaleString("vi-VN");
+    }
+
     function isExpiredKey(data) {
-      const createdMs = getCreatedAtMs(data);
+      const createdMs = getTimestampMs(data && data.createdAt);
       if (!createdMs) return false;
       return (Date.now() - createdMs) >= KEY_TTL_MS;
     }
 
     function formatKeyAgeText(data) {
-      const createdMs = getCreatedAtMs(data);
+      const createdMs = getTimestampMs(data && data.createdAt);
       if (!createdMs) return "Mới nhập / không có mốc ngày";
       const elapsedMs = Math.max(0, Date.now() - createdMs);
       const daysElapsed = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
-      const daysLeft = Math.max(0, KEY_TTL_DAYS - Math.floor(elapsedMs / (24 * 60 * 60 * 1000)));
-      return `Đã lưu ${daysElapsed} ngày • Còn ~${daysLeft} ngày tự xóa`;
+      const daysLeft = Math.max(0, KEY_TTL_DAYS - daysElapsed);
+      return "Đã lưu " + daysElapsed + " ngày • Còn ~" + daysLeft + " ngày tự xóa";
     }
 
-    async function getActiveUnsoldKeys(productId) {
+    async function fetchAndCleanUnsoldKeysByProduct(productId) {
       const snap = await getDocs(
         query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false))
       );
@@ -299,9 +362,7 @@
         if (isExpiredKey(docSnap.data())) {
           try {
             await deleteDoc(doc(db, "keys", docSnap.id));
-          } catch (_) {
-            // Bỏ qua nếu Firestore Rules chặn xóa trực tiếp từ client thường
-          }
+          } catch (e) {}
         } else {
           validDocs.push(docSnap);
         }
@@ -309,7 +370,7 @@
       return validDocs;
     }
 
-    window.updateBulkCalc = function() {
+    window.updateBulkCalc = function () {
       const qty = Number(document.getElementById("bulkQtyInput").value);
       const calcEl = document.getElementById("bulkCalcText");
       if (!Number.isFinite(qty) || qty <= 0) {
@@ -317,7 +378,7 @@
         return;
       }
       const total = qty * BULK_UNIT_PRICE;
-      calcEl.textContent = `${total.toLocaleString("vi-VN")}đ` + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
+      calcEl.textContent = total.toLocaleString("vi-VN") + "đ" + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
     };
 
     function renderUserBar() {
@@ -339,7 +400,7 @@
       `;
     }
 
-    window.registerUser = async function() {
+    window.registerUser = async function () {
       const email = document.getElementById("emailInput").value.trim();
       const pass = document.getElementById("passInput").value;
       try {
@@ -355,7 +416,7 @@
       }
     };
 
-    window.loginUser = async function() {
+    window.loginUser = async function () {
       const email = document.getElementById("emailInput").value.trim();
       const pass = document.getElementById("passInput").value;
       try {
@@ -366,12 +427,12 @@
       }
     };
 
-    window.logoutUser = async function() {
+    window.logoutUser = async function () {
       await signOut(auth);
       location.reload();
     };
 
-    onAuthStateChanged(auth, async (user) => {
+    onAuthStateChanged(auth, async function (user) {
       currentUser = user;
       const authBox = document.getElementById("authBox");
       const shopArea = document.getElementById("shopArea");
@@ -387,26 +448,26 @@
 
       authBox.style.display = "none";
       shopArea.style.display = "block";
-      if (adminBox) {
-        adminBox.style.display = isAdmin() ? "block" : "none";
-      }
+      if (adminBox) adminBox.style.display = isAdmin() ? "block" : "none";
 
-      const userRef = doc(db, "users", user.uid);
-      const snap = await getDoc(userRef);
-      if (!snap.exists()) {
-        await setDoc(userRef, { email: user.email, balance: 0 });
-        currentBalance = 0;
-      } else {
-        currentBalance = Number(snap.data().balance || 0);
-      }
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) {
+          await setDoc(userRef, { email: user.email, balance: 0 });
+          currentBalance = 0;
+        } else {
+          currentBalance = Number(snap.data().balance || 0);
+        }
 
-      renderUserBar();
-      await loadProducts();
-      await loadBulkStock();
-      await loadOrders();
+        renderUserBar();
+        await Promise.all([loadProducts(), loadBulkStock(), loadOrders()]);
+      } catch (e) {
+        showErr("Lỗi tải dữ liệu tài khoản: " + e.message);
+      }
     });
 
-    window.adminAddBalance = async function() {
+    window.adminAddBalance = async function () {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền cộng số dư.");
 
       const rawTarget = document.getElementById("targetUserInput").value.trim();
@@ -430,15 +491,13 @@
         }
 
         if (!targetDoc) {
-          return showErr(`Không tìm thấy tài khoản nào khớp với "${rawTarget}".`);
+          return showErr("Không tìm thấy tài khoản nào khớp với \"" + rawTarget + "\".");
         }
 
         const oldBalance = Number(targetDoc.data().balance || 0);
         const newBalance = oldBalance + amount;
 
-        await updateDoc(doc(db, "users", targetDoc.id), {
-          balance: newBalance
-        });
+        await updateDoc(doc(db, "users", targetDoc.id), { balance: newBalance });
 
         if (currentUser && targetDoc.id === currentUser.uid) {
           currentBalance = newBalance;
@@ -448,7 +507,8 @@
         const targetLabel = targetDoc.data().email || targetDoc.id;
         document.getElementById("addAmountInput").value = "";
         showMsg(
-          `Đã cập nhật số dư cho ${targetLabel}: ${oldBalance.toLocaleString("vi-VN")}đ -> ${newBalance.toLocaleString("vi-VN")}đ (${amount > 0 ? "+" : ""}${amount.toLocaleString("vi-VN")}đ).`
+          "Đã cập nhật số dư cho " + targetLabel + ": " +
+          oldBalance.toLocaleString("vi-VN") + "đ -> " + newBalance.toLocaleString("vi-VN") + "đ"
         );
       } catch (e) {
         showErr("Lỗi cộng số dư: " + e.message);
@@ -457,7 +517,7 @@
 
     function buildKeyRowsHtml(docsList, scope) {
       let html = "";
-      docsList.forEach((docSnap) => {
+      docsList.forEach(function (docSnap) {
         const k = docSnap.data();
         const codeText = String(k.code || "");
         const safeCode = codeText.replace(/'/g, "");
@@ -480,60 +540,56 @@
       return html;
     }
 
-    window.filterAdminKeys = function(scope) {
+    window.filterAdminKeys = function (scope) {
       const inputId = scope === "bulk" ? "bulkSearchInput" : "pkgSearchInput";
       const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
       const kw = (document.getElementById(inputId)?.value || "").trim().toLowerCase();
-      const rows = document.querySelectorAll(`#${listId} .key-row`);
-      rows.forEach((row) => {
+      const rows = document.querySelectorAll("#" + listId + " .key-row");
+      rows.forEach(function (row) {
         const code = row.getAttribute("data-code") || "";
         row.style.display = (!kw || code.includes(kw)) ? "flex" : "none";
       });
     };
 
-    window.toggleSelectAll = function(scope, checked) {
+    window.toggleSelectAll = function (scope, checked) {
       const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
-      const rows = document.querySelectorAll(`#${listId} .key-row`);
-      rows.forEach((row) => {
+      const rows = document.querySelectorAll("#" + listId + " .key-row");
+      rows.forEach(function (row) {
         if (row.style.display === "none") return;
         const cb = row.querySelector("input[type='checkbox']");
         if (cb) cb.checked = checked;
       });
     };
 
-    window.deleteSelectedKeys = async function(scope) {
+    window.deleteSelectedKeys = async function (scope) {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.");
       const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
-      const checkedBoxes = [...document.querySelectorAll(`#${listId} input.key-cb-${scope}:checked`)];
+      const checkedBoxes = Array.from(document.querySelectorAll("#" + listId + " input.key-cb-" + scope + ":checked"));
 
-      if (checkedBoxes.length === 0) {
-        return showErr("Hãy tích chọn ít nhất 1 key (những key nhập nhầm hoặc hết hạn) để xóa.");
-      }
-
-      if (!confirm(`Xóa ${checkedBoxes.length} key đã chọn khỏi kho?`)) return;
+      if (checkedBoxes.length === 0) return showErr("Hãy tích chọn ít nhất 1 key để xóa.");
+      if (!confirm("Xóa " + checkedBoxes.length + " key đã chọn khỏi kho?")) return;
 
       try {
         for (const cb of checkedBoxes) {
           await deleteDoc(doc(db, "keys", cb.value));
         }
-        showMsg(`Đã xóa ${checkedBoxes.length} key khỏi kho.`);
-        await loadProducts();
-        await loadBulkStock();
+        showMsg("Đã xóa " + checkedBoxes.length + " key khỏi kho.");
+        await Promise.all([loadProducts(), loadBulkStock()]);
       } catch (e) {
         showErr("Lỗi xóa hàng loạt: " + e.message);
       }
     };
 
     async function loadBulkStock() {
-      const validDocs = await getActiveUnsoldKeys(BULK_PRODUCT_ID);
+      const validDocs = await fetchAndCleanUnsoldKeysByProduct(BULK_PRODUCT_ID);
       const count = validDocs.length;
       const badge = document.getElementById("bulkStockBadge");
-      if (badge) badge.textContent = `Kho sỉ: ${count} key`;
+      if (badge) badge.textContent = "Kho sỉ: " + count + " key";
 
       if (isAdmin()) {
         const adminCountText = document.getElementById("adminBulkStockText");
         const adminListEl = document.getElementById("adminBulkKeysList");
-        if (adminCountText) adminCountText.textContent = `${count} key`;
+        if (adminCountText) adminCountText.textContent = count + " key";
 
         if (adminListEl) {
           if (validDocs.length === 0) {
@@ -550,11 +606,28 @@
       const listEl = document.getElementById("productsList");
       const selectEl = document.getElementById("keyProdSelect");
       const prevSelected = selectEl.value;
-      const snap = await getDocs(collection(db, "products"));
 
-      if (snap.empty) {
+      const [prodSnap, unsoldSnap] = await Promise.all([
+        getDocs(collection(db, "products")),
+        getDocs(query(collection(db, "keys"), where("sold", "==", false)))
+      ]);
+
+      const countByProduct = {};
+      for (const kDoc of unsoldSnap.docs) {
+        const kData = kDoc.data();
+        if (isExpiredKey(kData)) {
+          try {
+            await deleteDoc(doc(db, "keys", kDoc.id));
+          } catch (e) {}
+          continue;
+        }
+        const pid = kData.productId || "";
+        countByProduct[pid] = (countByProduct[pid] || 0) + 1;
+      }
+
+      if (prodSnap.empty) {
         listEl.innerHTML = "Chưa có gói key nào. Hãy thêm ở phần Admin bên dưới.";
-        selectEl.innerHTML = `<option value="">-- Chưa có gói --</option>`;
+        selectEl.innerHTML = "<option value=''>-- Chưa có gói --</option>";
         document.getElementById("adminKeysList").innerHTML = "Chưa có gói nào.";
         return;
       }
@@ -563,13 +636,11 @@
       let opts = "";
       const adminMode = isAdmin();
 
-      for (const d of snap.docs) {
+      for (const d of prodSnap.docs) {
         const p = d.data();
         const price = Number(p.price || 0);
         const safeName = String(p.name || "").replace(/'/g, "");
-
-        const validStockDocs = await getActiveUnsoldKeys(d.id);
-        const stockCount = validStockDocs.length;
+        const stockCount = countByProduct[d.id] || 0;
 
         const delProdBtn = adminMode
           ? `<button class="red" style="margin-top:4px; padding:7px 10px; font-size:13px;" onclick="deleteProduct('${d.id}', '${safeName}')">Xóa gói</button>`
@@ -597,16 +668,14 @@
 
       listEl.innerHTML = html;
       selectEl.innerHTML = opts;
-      if (prevSelected && [...selectEl.options].some(o => o.value === prevSelected)) {
+      if (prevSelected && Array.from(selectEl.options).some(function (o) { return o.value === prevSelected; })) {
         selectEl.value = prevSelected;
       }
 
-      if (adminMode) {
-        await loadAdminKeys();
-      }
+      if (adminMode) await loadAdminKeys();
     }
 
-    window.loadAdminKeys = async function() {
+    window.loadAdminKeys = async function () {
       if (!isAdmin()) return;
       const listEl = document.getElementById("adminKeysList");
       const productId = document.getElementById("keyProdSelect").value;
@@ -615,8 +684,7 @@
         return;
       }
 
-      const validDocs = await getActiveUnsoldKeys(productId);
-
+      const validDocs = await fetchAndCleanUnsoldKeysByProduct(productId);
       if (validDocs.length === 0) {
         listEl.innerHTML = "<div style='color:#94a3b8; font-size:14px;'>Gói này hiện không có key chưa bán nào.</div>";
         return;
@@ -626,10 +694,10 @@
       filterAdminKeys("pkg");
     };
 
-    window.deleteProduct = async function(productId, productName) {
+    window.deleteProduct = async function (productId, productName) {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa gói hàng.");
       if (!productId) return;
-      if (!confirm(`Xóa gói "${productName || productId}" và toàn bộ key chưa bán của gói này?`)) return;
+      if (!confirm("Xóa gói \"" + (productName || productId) + "\" và toàn bộ key chưa bán của gói này?")) return;
 
       try {
         const keysSnap = await getDocs(
@@ -639,32 +707,31 @@
           await deleteDoc(doc(db, "keys", kDoc.id));
         }
         await deleteDoc(doc(db, "products", productId));
-        showMsg(`Đã xóa gói "${productName || productId}".`);
+        showMsg("Đã xóa gói \"" + (productName || productId) + "\".");
         await loadProducts();
       } catch (e) {
         showErr("Lỗi xóa gói: " + e.message);
       }
     };
 
-    window.deleteKey = async function(keyDocId, keyCode) {
+    window.deleteKey = async function (keyDocId, keyCode) {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.");
       if (!keyDocId) return;
-      if (!confirm(`Xóa key "${keyCode || keyDocId}" khỏi kho?`)) return;
+      if (!confirm("Xóa key \"" + (keyCode || keyDocId) + "\" khỏi kho?")) return;
 
       try {
         await deleteDoc(doc(db, "keys", keyDocId));
-        showMsg(`Đã xóa key "${keyCode || keyDocId}".`);
-        await loadProducts();
-        await loadBulkStock();
+        showMsg("Đã xóa key \"" + (keyCode || keyDocId) + "\".");
+        await Promise.all([loadProducts(), loadBulkStock()]);
       } catch (e) {
         showErr("Lỗi xóa key: " + e.message);
       }
     };
 
-    window.importBulkKeys = async function() {
+    window.importBulkKeys = async function () {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.");
       const raw = document.getElementById("bulkKeysTextarea").value;
-      const lines = raw.split("\n").map(x => x.trim()).filter(Boolean);
+      const lines = raw.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
 
       if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key cho kho Tùy chọn.");
 
@@ -678,34 +745,33 @@
           });
         }
         document.getElementById("bulkKeysTextarea").value = "";
-        showMsg(`Đã nhập thành công ${lines.length} key vào kho Tùy chọn (tự xóa sau ${KEY_TTL_DAYS} ngày)!`);
+        showMsg("Đã nhập thành công " + lines.length + " key vào kho Tùy chọn (tự xóa sau " + KEY_TTL_DAYS + " ngày)!");
         await loadBulkStock();
       } catch (e) {
         showErr("Lỗi nhập key Tùy chọn: " + e.message);
       }
     };
 
-    window.buyBulkKeys = async function() {
+    window.buyBulkKeys = async function () {
       if (!currentUser) return showErr("Vui lòng đăng nhập.");
 
       const qty = Number(document.getElementById("bulkQtyInput").value);
       if (!Number.isInteger(qty) || qty < BULK_MIN_QTY) {
-        return showErr(`Vui lòng nhập số lượng nguyên từ ${BULK_MIN_QTY} key trở lên.`);
+        return showErr("Vui lòng nhập số lượng nguyên từ " + BULK_MIN_QTY + " key trở lên.");
       }
 
       const totalPrice = qty * BULK_UNIT_PRICE;
       if (currentBalance < totalPrice) {
         return showErr(
-          `Số dư không đủ! Cần ${totalPrice.toLocaleString("vi-VN")}đ cho ${qty} key, bạn đang có ${currentBalance.toLocaleString("vi-VN")}đ.`
+          "Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ cho " + qty + " key, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ."
         );
       }
 
       try {
-        const validStockDocs = await getActiveUnsoldKeys(BULK_PRODUCT_ID);
-
+        const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(BULK_PRODUCT_ID);
         if (validStockDocs.length < qty) {
           await loadBulkStock();
-          return showErr(`Kho tùy chọn hiện chỉ còn ${validStockDocs.length} key chưa bán còn hạn, không đủ ${qty} key.`);
+          return showErr("Kho tùy chọn hiện chỉ còn " + validStockDocs.length + " key chưa bán còn hạn, không đủ " + qty + " key.");
         }
 
         const selectedDocs = validStockDocs.slice(0, qty);
@@ -723,16 +789,19 @@
         }
 
         const newBalance = currentBalance - totalPrice;
-        await updateDoc(doc(db, "users", currentUser.uid), {
-          balance: newBalance
-        });
+        await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
+
+        const productTitle = "Gói tùy chọn " + qty + " key (400đ/key)";
+        const joinedKeys = boughtKeys.join("\n");
+        const nowText = new Date().toLocaleString("vi-VN");
 
         await addDoc(collection(db, "orders"), {
           userId: currentUser.uid,
           productId: BULK_PRODUCT_ID,
-          productName: `Gói tùy chọn ${qty} key (400đ/key)`,
+          productName: productTitle,
           price: totalPrice,
-          keyCode: boughtKeys.join(" | "),
+          keyCode: joinedKeys,
+          purchasedAtText: nowText,
           createdAt: serverTimestamp()
         });
 
@@ -740,23 +809,22 @@
         document.getElementById("bulkQtyInput").value = "";
         updateBulkCalc();
         renderUserBar();
-        showMsg(`Mua thành công ${qty} key (${totalPrice.toLocaleString("vi-VN")}đ)!`);
-        await loadBulkStock();
-        await loadOrders();
+        showMsg("Mua thành công " + qty + " key (" + totalPrice.toLocaleString("vi-VN") + "đ)!");
+        await Promise.all([loadBulkStock(), loadOrders()]);
+        openKeyModal(productTitle, joinedKeys, nowText);
       } catch (e) {
         showErr("Lỗi khi mua key tùy chọn: " + e.message);
       }
     };
 
-    window.buyKey = async function(productId, productName, price) {
+    window.buyKey = async function (productId, productName, price) {
       if (!currentUser) return showErr("Vui lòng đăng nhập.");
       if (currentBalance < price) {
-        return showErr(`Số dư không đủ! Cần ${price.toLocaleString("vi-VN")}đ, bạn đang có ${currentBalance.toLocaleString("vi-VN")}đ.`);
+        return showErr("Số dư không đủ! Cần " + price.toLocaleString("vi-VN") + "đ, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ.");
       }
 
       try {
-        const validStockDocs = await getActiveUnsoldKeys(productId);
-
+        const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(productId);
         if (validStockDocs.length === 0) {
           await loadProducts();
           return showErr("Gói này đã hết key còn hạn trong kho!");
@@ -765,6 +833,7 @@
         const keyDoc = validStockDocs[0];
         const keyCode = keyDoc.data().code;
         const newBalance = currentBalance - price;
+        const nowText = new Date().toLocaleString("vi-VN");
 
         await updateDoc(doc(db, "keys", keyDoc.id), {
           sold: true,
@@ -773,9 +842,7 @@
           soldAt: serverTimestamp()
         });
 
-        await updateDoc(doc(db, "users", currentUser.uid), {
-          balance: newBalance
-        });
+        await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
 
         await addDoc(collection(db, "orders"), {
           userId: currentUser.uid,
@@ -783,14 +850,15 @@
           productName: productName,
           price: price,
           keyCode: keyCode,
+          purchasedAtText: nowText,
           createdAt: serverTimestamp()
         });
 
         currentBalance = newBalance;
         renderUserBar();
-        showMsg(`Mua thành công gói "${productName}"! Key của bạn: ${keyCode}`);
-        await loadProducts();
-        await loadOrders();
+        showMsg("Mua thành công gói \"" + productName + "\"!");
+        await Promise.all([loadProducts(), loadOrders()]);
+        openKeyModal(productName, keyCode, nowText);
       } catch (e) {
         showErr("Lỗi khi mua key: " + e.message);
       }
@@ -807,20 +875,41 @@
         return;
       }
 
-      let html = "";
-      snap.forEach((d) => {
+      const orderItems = [];
+      snap.forEach(function (d) {
         const o = d.data();
+        const sortMs = getTimestampMs(o.createdAt) || 0;
+        const timeStr = o.purchasedAtText || formatPurchaseTime(o.createdAt);
+        const keyStr = String(o.keyCode || "");
+        orderItems.push({
+          sortMs: sortMs,
+          productName: o.productName || "Gói Key",
+          price: Number(o.price || 0),
+          keyStr: keyStr,
+          timeStr: timeStr
+        });
+      });
+
+      orderItems.sort(function (a, b) { return b.sortMs - a.sortMs; });
+
+      let html = "";
+      for (const item of orderItems) {
+        const encodedKey = encodeURIComponent(item.keyStr);
         html += `
           <div class="item">
-            <div><b>${o.productName}</b> - <span style="color:#cbd5e1;">${Number(o.price || 0).toLocaleString("vi-VN")}đ</span></div>
-            <div class="key-box">KEY: ${o.keyCode}</div>
+            <div><b>${item.productName}</b> - <span style="color:#cbd5e1;">${item.price.toLocaleString("vi-VN")}đ</span></div>
+            <div class="order-time">🕒 Thời gian mua: ${item.timeStr}</div>
+            <div class="key-box">${item.keyStr}</div>
+            <div class="order-actions">
+              <button class="green" onclick="copyOrderKey('${encodedKey}')">📋 Copy Key</button>
+            </div>
           </div>
         `;
-      });
+      }
       ordersEl.innerHTML = html;
     }
 
-    window.addProduct = async function() {
+    window.addProduct = async function () {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được thêm gói hàng.");
       const name = document.getElementById("prodName").value.trim();
       const price = Number(document.getElementById("prodPrice").value);
@@ -841,11 +930,11 @@
       }
     };
 
-    window.importKeys = async function() {
+    window.importKeys = async function () {
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.");
       const productId = document.getElementById("keyProdSelect").value;
       const raw = document.getElementById("keysTextarea").value;
-      const lines = raw.split("\n").map(x => x.trim()).filter(Boolean);
+      const lines = raw.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
 
       if (!productId) return showErr("Hãy chọn gói hàng trước.");
       if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key.");
@@ -860,7 +949,7 @@
           });
         }
         document.getElementById("keysTextarea").value = "";
-        showMsg(`Đã nhập thành công ${lines.length} key vào kho (tự xóa sau ${KEY_TTL_DAYS} ngày)!`);
+        showMsg("Đã nhập thành công " + lines.length + " key vào kho (tự xóa sau " + KEY_TTL_DAYS + " ngày)!");
         await loadProducts();
       } catch (e) {
         showErr("Lỗi nhập key: " + e.message);
