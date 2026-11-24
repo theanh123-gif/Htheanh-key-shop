@@ -29,8 +29,8 @@
     .qty-btn { width: 34px; height: 34px; margin: 0; padding: 0; font-size: 17px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
     .qty-num { width: 58px; height: 34px; margin: 0; padding: 4px 6px; text-align: center; font-size: 14px; font-weight: bold; border-radius: 8px; }
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #334155; font-size: 12px; }
-    .msg { padding: 10px; border-radius: 8px; background: #14532d; color: #dcfce7; margin: 8px 0; display: none; }
-    .err { padding: 10px; border-radius: 8px; background: #7f1d1d; color: #fee2e2; margin: 8px 0; display: none; }
+    .msg { padding: 10px; border-radius: 8px; background: #14532d; color: #dcfce7; margin: 8px 0 0; display: none; font-size: 13px; }
+    .err { padding: 10px; border-radius: 8px; background: #7f1d1d; color: #fee2e2; margin: 8px 0 0; display: none; font-size: 13px; }
     .key-box { background: #020617; border: 1px dashed #22c55e; padding: 10px; border-radius: 8px; color: #4ade80; font-weight: bold; word-break: break-all; margin-top: 8px; font-family: monospace; white-space: pre-line; line-height: 1.55; }
     .order-time { font-size: 12px; color: #94a3b8; margin-top: 4px; }
     .order-actions { display: flex; gap: 8px; margin-top: 8px; }
@@ -97,12 +97,14 @@
       <button onclick="loginUser()">Đăng nhập</button>
       <button class="green" onclick="registerUser()">Đăng ký</button>
     </div>
+    <div id="authFeedback" class="err"></div>
   </div>
 
   <div id="shopArea" style="display:none;">
     <div class="box">
       <h2>🛒 Danh sách gói Key</h2>
       <div id="productsList">Đang tải gói hàng...</div>
+      <div id="shopFeedback" class="err"></div>
 
       <div class="item" style="margin-top:12px; border-color:#38bdf8;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
@@ -117,6 +119,7 @@
         </div>
         <input id="bulkQtyInput" type="number" min="20" step="1" placeholder="Nhập số lượng key (VD: 20)" oninput="updateBulkCalc()" />
         <button class="green" onclick="buyBulkKeys()">Mua tùy chọn</button>
+        <div id="bulkFeedback" class="err"></div>
       </div>
     </div>
 
@@ -143,11 +146,13 @@
       <input id="prodName" placeholder="Tên gói (VD: Key Quét Link Rương 1 Ngày)" />
       <input id="prodPrice" type="number" placeholder="Giá bán VNĐ (VD: 10000)" />
       <button class="green" onclick="addProduct()">+ Thêm gói hàng</button>
+      <div id="adminProdFeedback" class="err"></div>
 
       <h3 style="margin-top:16px;">2. Nhập kho Key theo gói (mỗi dòng 1 key)</h3>
       <select id="keyProdSelect" onchange="loadAdminKeys()"></select>
       <textarea id="keysTextarea" rows="5" placeholder="KEY-111&#10;KEY-222&#10;KEY-333"></textarea>
       <button onclick="importKeys()">Nhập Key vào kho gói</button>
+      <div id="adminImportFeedback" class="err"></div>
 
       <h3 style="margin-top:16px;">3. Xem &amp; lọc key chưa bán trong gói đang chọn</h3>
       <input id="pkgSearchInput" type="text" placeholder="Tìm nhanh mã key trong gói..." oninput="filterAdminKeys('pkg')" />
@@ -156,6 +161,7 @@
         <button class="gray" onclick="toggleSelectAll('pkg', false)">Bỏ chọn</button>
         <button class="red" onclick="deleteSelectedKeys('pkg')">Xóa key đã chọn</button>
       </div>
+      <div id="adminPkgKeysFeedback" class="err"></div>
       <div id="adminKeysList">Đang tải danh sách key...</div>
 
       <div class="item" style="margin-top:18px; border-color:#22c55e;">
@@ -173,6 +179,7 @@
           <button class="gray" onclick="toggleSelectAll('bulk', false)">Bỏ chọn</button>
           <button class="red" onclick="deleteSelectedKeys('bulk')">Xóa key đã chọn</button>
         </div>
+        <div id="adminBulkFeedback" class="err"></div>
         <div id="adminBulkKeysList">Đang tải key tùy chọn...</div>
       </div>
 
@@ -184,6 +191,7 @@
         <input id="targetUserInput" type="text" placeholder="Email hoặc UID (VD: htheanh817@gmail.com)" />
         <input id="addAmountInput" type="number" step="1" placeholder="Số tiền cộng VNĐ (VD: 50000)" />
         <button class="green" onclick="adminAddBalance()">+ Cộng số dư</button>
+        <div id="adminBalFeedback" class="err"></div>
       </div>
     </div>
   </div>
@@ -321,22 +329,60 @@
       return Boolean(currentUser && currentUser.email === ADMIN_EMAIL);
     }
 
-    function showMsg(text) {
-      const el = document.getElementById("msgBox");
-      const err = document.getElementById("errBox");
-      err.style.display = "none";
-      el.textContent = text;
-      el.style.display = "block";
+    function clearInlineFeedbacks() {
+      document.querySelectorAll(".msg, .err").forEach(function (el) {
+        if (el.id !== "msgBox" && el.id !== "errBox") {
+          el.style.display = "none";
+          el.textContent = "";
+        }
+      });
+    }
+
+    function showMsg(text, targetId) {
+      const topMsg = document.getElementById("msgBox");
+      const topErr = document.getElementById("errBox");
+      if (topErr) topErr.style.display = "none";
+      if (topMsg) {
+        topMsg.textContent = text;
+        topMsg.style.display = "block";
+      }
+      if (targetId) {
+        const localEl = document.getElementById(targetId);
+        if (localEl) {
+          localEl.className = "msg";
+          localEl.textContent = text;
+          localEl.style.display = "block";
+        }
+      }
     }
 
     window.showShopToast = showMsg;
 
-    function showErr(text) {
-      const el = document.getElementById("errBox");
-      const msg = document.getElementById("msgBox");
-      msg.style.display = "none";
-      el.textContent = text;
-      el.style.display = "block";
+    function showErr(text, targetId) {
+      const topErr = document.getElementById("errBox");
+      const topMsg = document.getElementById("msgBox");
+      if (topMsg) topMsg.style.display = "none";
+      if (topErr) {
+        topErr.textContent = text;
+        topErr.style.display = "block";
+      }
+      if (targetId) {
+        const localEl = document.getElementById(targetId);
+        if (localEl) {
+          localEl.className = "err";
+          localEl.textContent = text;
+          localEl.style.display = "block";
+        }
+      }
+    }
+
+    function showInlineWarn(text, targetId) {
+      if (!targetId) return;
+      const localEl = document.getElementById(targetId);
+      if (!localEl) return;
+      localEl.className = "err";
+      localEl.textContent = text;
+      localEl.style.display = "block";
     }
 
     function getTimestampMs(ts) {
@@ -391,33 +437,67 @@
 
     function syncProductCardQty(productId, rawQty, unitPrice, stockCount) {
       const maxStock = Math.max(0, Number(stockCount || 0));
-      let qty = Math.floor(Number(rawQty || 1));
-      if (!Number.isFinite(qty) || qty < 1) qty = 1;
-      if (maxStock > 0 && qty > maxStock) qty = maxStock;
+      const parsedNum = Number(rawQty);
+      const errId = "prodErr_" + productId;
+      let qty = Math.floor(parsedNum);
+      let noticeText = "";
+
+      if (!Number.isFinite(parsedNum) || parsedNum < 1) {
+        qty = 1;
+        if (String(rawQty).trim() !== "" && parsedNum < 1) {
+          noticeText = "Số lượng tối thiểu là 1 key.";
+        }
+      } else if (maxStock > 0 && parsedNum > maxStock) {
+        qty = maxStock;
+        noticeText = "Kho chỉ còn " + maxStock + " key, đã đặt về mức tối đa " + maxStock + " key.";
+      }
 
       productQtyMap[productId] = qty;
 
       const inputEl = document.getElementById("qtyInput_" + productId);
       const totalEl = document.getElementById("qtyTotal_" + productId);
+      const errEl = document.getElementById(errId);
       if (inputEl && Number(inputEl.value) !== qty) inputEl.value = String(qty);
       if (totalEl) totalEl.textContent = (Number(unitPrice || 0) * qty).toLocaleString("vi-VN") + "đ";
+      if (errEl) {
+        if (noticeText) {
+          errEl.className = "err";
+          errEl.textContent = noticeText;
+          errEl.style.display = "block";
+        } else {
+          errEl.style.display = "none";
+        }
+      }
     }
 
     window.changeProductQty = function (productId, delta, unitPrice, stockCount) {
       const curEl = document.getElementById("qtyInput_" + productId);
       const currentQty = Number(productQtyMap[productId] || (curEl ? curEl.value : 1));
-      syncProductCardQty(productId, currentQty + delta, unitPrice, stockCount);
+      const nextRaw = currentQty + delta;
+      if (delta > 0 && stockCount > 0 && nextRaw > stockCount) {
+        syncProductCardQty(productId, stockCount, unitPrice, stockCount);
+        showInlineWarn("Kho chỉ còn " + stockCount + " key.", "prodErr_" + productId);
+        return;
+      }
+      if (delta < 0 && nextRaw < 1) {
+        syncProductCardQty(productId, 1, unitPrice, stockCount);
+        showInlineWarn("Số lượng tối thiểu là 1 key.", "prodErr_" + productId);
+        return;
+      }
+      syncProductCardQty(productId, nextRaw, unitPrice, stockCount);
     };
 
     window.onProductQtyInput = function (productId, unitPrice, stockCount) {
       const inputEl = document.getElementById("qtyInput_" + productId);
-      const val = inputEl ? Number(inputEl.value) : 1;
+      const val = inputEl ? inputEl.value : 1;
       syncProductCardQty(productId, val, unitPrice, stockCount);
     };
 
     window.updateBulkCalc = function () {
       const qty = Number(document.getElementById("bulkQtyInput").value);
       const calcEl = document.getElementById("bulkCalcText");
+      const errEl = document.getElementById("bulkFeedback");
+      if (errEl) errEl.style.display = "none";
       if (!Number.isFinite(qty) || qty <= 0) {
         calcEl.textContent = "0đ";
         return;
@@ -446,6 +526,7 @@
     }
 
     window.registerUser = async function () {
+      clearInlineFeedbacks();
       const email = document.getElementById("emailInput").value.trim();
       const pass = document.getElementById("passInput").value;
       try {
@@ -455,20 +536,21 @@
           balance: 0,
           createdAt: serverTimestamp()
         });
-        showMsg("Đăng ký thành công!");
+        showMsg("Đăng ký thành công!", "authFeedback");
       } catch (e) {
-        showErr("Lỗi đăng ký: " + e.message);
+        showErr("Lỗi đăng ký: " + e.message, "authFeedback");
       }
     };
 
     window.loginUser = async function () {
+      clearInlineFeedbacks();
       const email = document.getElementById("emailInput").value.trim();
       const pass = document.getElementById("passInput").value;
       try {
         await signInWithEmailAndPassword(auth, email, pass);
-        showMsg("Đăng nhập thành công!");
+        showMsg("Đăng nhập thành công!", "authFeedback");
       } catch (e) {
-        showErr("Lỗi đăng nhập: " + e.message);
+        showErr("Lỗi đăng nhập: " + e.message, "authFeedback");
       }
     };
 
@@ -508,18 +590,19 @@
         renderUserBar();
         await Promise.all([loadProducts(), loadBulkStock(), loadOrders()]);
       } catch (e) {
-        showErr("Lỗi tải dữ liệu tài khoản: " + e.message);
+        showErr("Lỗi tải dữ liệu tài khoản: " + e.message, "shopFeedback");
       }
     });
 
     window.adminAddBalance = async function () {
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền cộng số dư.");
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền cộng số dư.", "adminBalFeedback");
 
       const rawTarget = document.getElementById("targetUserInput").value.trim();
       const amount = Number(document.getElementById("addAmountInput").value);
 
-      if (!rawTarget) return showErr("Nhập Email hoặc UID của tài khoản cần cộng tiền.");
-      if (!Number.isFinite(amount) || amount === 0) return showErr("Nhập số tiền hợp lệ (khác 0).");
+      if (!rawTarget) return showErr("Nhập Email hoặc UID của tài khoản cần cộng tiền.", "adminBalFeedback");
+      if (!Number.isFinite(amount) || amount === 0) return showErr("Nhập số tiền hợp lệ (khác 0).", "adminBalFeedback");
 
       try {
         const usersSnap = await getDocs(collection(db, "users"));
@@ -535,7 +618,7 @@
           }
         }
 
-        if (!targetDoc) return showErr("Không tìm thấy tài khoản nào khớp với \"" + rawTarget + "\".");
+        if (!targetDoc) return showErr("Không tìm thấy tài khoản nào khớp với \"" + rawTarget + "\".", "adminBalFeedback");
 
         const oldBalance = Number(targetDoc.data().balance || 0);
         const newBalance = oldBalance + amount;
@@ -551,10 +634,11 @@
         document.getElementById("addAmountInput").value = "";
         showMsg(
           "Đã cập nhật số dư cho " + targetLabel + ": " +
-          oldBalance.toLocaleString("vi-VN") + "đ -> " + newBalance.toLocaleString("vi-VN") + "đ"
+          oldBalance.toLocaleString("vi-VN") + "đ -> " + newBalance.toLocaleString("vi-VN") + "đ",
+          "adminBalFeedback"
         );
       } catch (e) {
-        showErr("Lỗi cộng số dư: " + e.message);
+        showErr("Lỗi cộng số dư: " + e.message, "adminBalFeedback");
       }
     };
     function buildKeyRowsHtml(docsList, scope) {
@@ -573,7 +657,7 @@
                 <div class="key-age">${ageText}</div>
               </div>
             </div>
-            <button class="red" style="width:auto; margin:0; padding:6px 12px; font-size:13px;" onclick="deleteKey('${docSnap.id}', '${safeCode}')">
+            <button class="red" style="width:auto; margin:0; padding:6px 12px; font-size:13px;" onclick="deleteKey('${docSnap.id}', '${safeCode}', '${scope}')">
               Xóa
             </button>
           </div>
@@ -605,21 +689,23 @@
     };
 
     window.deleteSelectedKeys = async function (scope) {
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.");
+      clearInlineFeedbacks();
+      const fbId = scope === "bulk" ? "adminBulkFeedback" : "adminPkgKeysFeedback";
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.", fbId);
       const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
       const checkedBoxes = Array.from(document.querySelectorAll("#" + listId + " input.key-cb-" + scope + ":checked"));
 
-      if (checkedBoxes.length === 0) return showErr("Hãy tích chọn ít nhất 1 key để xóa.");
+      if (checkedBoxes.length === 0) return showErr("Hãy tích chọn ít nhất 1 key để xóa.", fbId);
       if (!confirm("Xóa " + checkedBoxes.length + " key đã chọn khỏi kho?")) return;
 
       try {
         for (const cb of checkedBoxes) {
           await deleteDoc(doc(db, "keys", cb.value));
         }
-        showMsg("Đã xóa " + checkedBoxes.length + " key khỏi kho.");
+        showMsg("Đã xóa " + checkedBoxes.length + " key khỏi kho.", fbId);
         await Promise.all([loadProducts(), loadBulkStock()]);
       } catch (e) {
-        showErr("Lỗi xóa hàng loạt: " + e.message);
+        showErr("Lỗi xóa hàng loạt: " + e.message, fbId);
       }
     };
 
@@ -721,6 +807,7 @@
                 ${delProdBtn}
               </div>
             </div>
+            <div id="prodErr_${d.id}" class="err"></div>
           </div>
         `;
 
@@ -756,7 +843,9 @@
     };
 
     window.deleteProduct = async function (productId, productName) {
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa gói hàng.");
+      clearInlineFeedbacks();
+      const errId = "prodErr_" + productId;
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa gói hàng.", errId);
       if (!productId) return;
       if (!confirm("Xóa gói \"" + (productName || productId) + "\" và toàn bộ key chưa bán của gói này?")) return;
 
@@ -769,33 +858,36 @@
         }
         await deleteDoc(doc(db, "products", productId));
         delete productQtyMap[productId];
-        showMsg("Đã xóa gói \"" + (productName || productId) + "\".");
+        showMsg("Đã xóa gói \"" + (productName || productId) + "\".", "shopFeedback");
         await loadProducts();
       } catch (e) {
-        showErr("Lỗi xóa gói: " + e.message);
+        showErr("Lỗi xóa gói: " + e.message, errId);
       }
     };
 
-    window.deleteKey = async function (keyDocId, keyCode) {
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.");
+    window.deleteKey = async function (keyDocId, keyCode, scope) {
+      clearInlineFeedbacks();
+      const fbId = scope === "bulk" ? "adminBulkFeedback" : "adminPkgKeysFeedback";
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.", fbId);
       if (!keyDocId) return;
       if (!confirm("Xóa key \"" + (keyCode || keyDocId) + "\" khỏi kho?")) return;
 
       try {
         await deleteDoc(doc(db, "keys", keyDocId));
-        showMsg("Đã xóa key \"" + (keyCode || keyDocId) + "\".");
+        showMsg("Đã xóa key \"" + (keyCode || keyDocId) + "\".", fbId);
         await Promise.all([loadProducts(), loadBulkStock()]);
       } catch (e) {
-        showErr("Lỗi xóa key: " + e.message);
+        showErr("Lỗi xóa key: " + e.message, fbId);
       }
     };
 
     window.importBulkKeys = async function () {
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.");
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.", "adminBulkFeedback");
       const raw = document.getElementById("bulkKeysTextarea").value;
       const lines = raw.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
 
-      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key cho kho Tùy chọn.");
+      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key cho kho Tùy chọn.", "adminBulkFeedback");
 
       try {
         for (const k of lines) {
@@ -807,25 +899,27 @@
           });
         }
         document.getElementById("bulkKeysTextarea").value = "";
-        showMsg("Đã nhập thành công " + lines.length + " key vào kho Tùy chọn (tự xóa sau " + KEY_TTL_DAYS + " ngày)!");
+        showMsg("Đã nhập thành công " + lines.length + " key vào kho Tùy chọn (tự xóa sau " + KEY_TTL_DAYS + " ngày)!", "adminBulkFeedback");
         await loadBulkStock();
       } catch (e) {
-        showErr("Lỗi nhập key Tùy chọn: " + e.message);
+        showErr("Lỗi nhập key Tùy chọn: " + e.message, "adminBulkFeedback");
       }
     };
 
     window.buyBulkKeys = async function () {
-      if (!currentUser) return showErr("Vui lòng đăng nhập.");
+      clearInlineFeedbacks();
+      if (!currentUser) return showErr("Vui lòng đăng nhập.", "bulkFeedback");
 
       const qty = Number(document.getElementById("bulkQtyInput").value);
       if (!Number.isInteger(qty) || qty < BULK_MIN_QTY) {
-        return showErr("Vui lòng nhập số lượng nguyên từ " + BULK_MIN_QTY + " key trở lên.");
+        return showErr("Vui lòng nhập số lượng nguyên từ " + BULK_MIN_QTY + " key trở lên.", "bulkFeedback");
       }
 
       const totalPrice = qty * BULK_UNIT_PRICE;
       if (currentBalance < totalPrice) {
         return showErr(
-          "Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ cho " + qty + " key, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ."
+          "Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ cho " + qty + " key, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ.",
+          "bulkFeedback"
         );
       }
 
@@ -833,7 +927,7 @@
         const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(BULK_PRODUCT_ID);
         if (validStockDocs.length < qty) {
           await loadBulkStock();
-          return showErr("Kho tùy chọn hiện chỉ còn " + validStockDocs.length + " key chưa bán còn hạn, không đủ " + qty + " key.");
+          return showErr("Kho tùy chọn hiện chỉ còn " + validStockDocs.length + " key chưa bán còn hạn, không đủ " + qty + " key.", "bulkFeedback");
         }
 
         const selectedDocs = validStockDocs.slice(0, qty);
@@ -871,27 +965,30 @@
         document.getElementById("bulkQtyInput").value = "";
         updateBulkCalc();
         renderUserBar();
-        showMsg("Mua thành công " + qty + " key (" + totalPrice.toLocaleString("vi-VN") + "đ)!");
+        showMsg("Mua thành công " + qty + " key (" + totalPrice.toLocaleString("vi-VN") + "đ)!", "bulkFeedback");
         await Promise.all([loadBulkStock(), loadOrders()]);
         openKeyModal(productTitle, joinedKeys, nowText);
       } catch (e) {
-        showErr("Lỗi khi mua key tùy chọn: " + e.message);
+        showErr("Lỗi khi mua key tùy chọn: " + e.message, "bulkFeedback");
       }
     };
 
     window.buyKey = async function (productId, productName, unitPrice) {
-      if (!currentUser) return showErr("Vui lòng đăng nhập.");
+      clearInlineFeedbacks();
+      const errId = "prodErr_" + productId;
+      if (!currentUser) return showErr("Vui lòng đăng nhập.", errId);
 
       const inputEl = document.getElementById("qtyInput_" + productId);
       const qty = Math.floor(Number(inputEl ? inputEl.value : (productQtyMap[productId] || 1)));
       if (!Number.isFinite(qty) || qty < 1) {
-        return showErr("Số lượng mua tối thiểu là 1 key.");
+        return showErr("Số lượng mua tối thiểu là 1 key.", errId);
       }
 
       const totalPrice = Number(unitPrice || 0) * qty;
       if (currentBalance < totalPrice) {
         return showErr(
-          "Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ cho " + qty + " key, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ."
+          "Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ cho " + qty + " key, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ.",
+          errId
         );
       }
 
@@ -899,11 +996,11 @@
         const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(productId);
         if (validStockDocs.length === 0) {
           await loadProducts();
-          return showErr("Gói này đã hết key còn hạn trong kho!");
+          return showErr("Gói này đã hết key còn hạn trong kho!", errId);
         }
         if (validStockDocs.length < qty) {
           await loadProducts();
-          return showErr("Gói này chỉ còn " + validStockDocs.length + " key trong kho, không đủ " + qty + " key.");
+          return showErr("Gói này chỉ còn " + validStockDocs.length + " key trong kho, không đủ " + qty + " key.", errId);
         }
 
         const selectedDocs = validStockDocs.slice(0, qty);
@@ -938,11 +1035,11 @@
         currentBalance = newBalance;
         productQtyMap[productId] = 1;
         renderUserBar();
-        showMsg("Mua thành công " + qty + " key gói \"" + productName + "\"!");
+        showMsg("Mua thành công " + qty + " key gói \"" + productName + "\"!", errId);
         await Promise.all([loadProducts(), loadOrders()]);
         openKeyModal(orderTitle, joinedKeys, nowText);
       } catch (e) {
-        showErr("Lỗi khi mua key: " + e.message);
+        showErr("Lỗi khi mua key: " + e.message, errId);
       }
     };
 
@@ -992,10 +1089,11 @@
     }
 
     window.addProduct = async function () {
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được thêm gói hàng.");
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được thêm gói hàng.", "adminProdFeedback");
       const name = document.getElementById("prodName").value.trim();
       const price = Number(document.getElementById("prodPrice").value);
-      if (!name || !price || price <= 0) return showErr("Nhập đủ tên gói và giá hợp lệ.");
+      if (!name || !price || price <= 0) return showErr("Nhập đủ tên gói và giá hợp lệ.", "adminProdFeedback");
 
       try {
         await addDoc(collection(db, "products"), {
@@ -1005,21 +1103,22 @@
         });
         document.getElementById("prodName").value = "";
         document.getElementById("prodPrice").value = "";
-        showMsg("Đã thêm gói hàng mới!");
+        showMsg("Đã thêm gói hàng mới!", "adminProdFeedback");
         await loadProducts();
       } catch (e) {
-        showErr("Lỗi thêm gói: " + e.message);
+        showErr("Lỗi thêm gói: " + e.message, "adminProdFeedback");
       }
     };
 
     window.importKeys = async function () {
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.");
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.", "adminImportFeedback");
       const productId = document.getElementById("keyProdSelect").value;
       const raw = document.getElementById("keysTextarea").value;
       const lines = raw.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
 
-      if (!productId) return showErr("Hãy chọn gói hàng trước.");
-      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key.");
+      if (!productId) return showErr("Hãy chọn gói hàng trước.", "adminImportFeedback");
+      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key.", "adminImportFeedback");
 
       try {
         for (const k of lines) {
@@ -1031,10 +1130,10 @@
           });
         }
         document.getElementById("keysTextarea").value = "";
-        showMsg("Đã nhập thành công " + lines.length + " key vào kho (tự xóa sau " + KEY_TTL_DAYS + " ngày)!");
+        showMsg("Đã nhập thành công " + lines.length + " key vào kho (tự xóa sau " + KEY_TTL_DAYS + " ngày)!", "adminImportFeedback");
         await loadProducts();
       } catch (e) {
-        showErr("Lỗi nhập key: " + e.message);
+        showErr("Lỗi nhập key: " + e.message, "adminImportFeedback");
       }
     };
   </script>
