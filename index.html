@@ -22,6 +22,12 @@
     .row { display: flex; gap: 8px; }
     .row > * { flex: 1; }
     .item { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; margin: 8px 0; }
+    .prod-card { display: flex; flex-direction: column; gap: 10px; }
+    .prod-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .prod-bottom { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid #1e293b; }
+    .qty-box { display: inline-flex; align-items: center; gap: 6px; }
+    .qty-btn { width: 34px; height: 34px; margin: 0; padding: 0; font-size: 17px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
+    .qty-num { width: 58px; height: 34px; margin: 0; padding: 4px 6px; text-align: center; font-size: 14px; font-weight: bold; border-radius: 8px; }
     .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; background: #334155; font-size: 12px; }
     .msg { padding: 10px; border-radius: 8px; background: #14532d; color: #dcfce7; margin: 8px 0; display: none; }
     .err { padding: 10px; border-radius: 8px; background: #7f1d1d; color: #fee2e2; margin: 8px 0; display: none; }
@@ -309,6 +315,7 @@
 
     let currentUser = null;
     let currentBalance = 0;
+    const productQtyMap = {};
 
     function isAdmin() {
       return Boolean(currentUser && currentUser.email === ADMIN_EMAIL);
@@ -374,15 +381,39 @@
       const validDocs = [];
       for (const docSnap of snap.docs) {
         if (isExpiredKey(docSnap.data())) {
-          try {
-            await deleteDoc(doc(db, "keys", docSnap.id));
-          } catch (e) {}
+          try { await deleteDoc(doc(db, "keys", docSnap.id)); } catch (e) {}
         } else {
           validDocs.push(docSnap);
         }
       }
       return validDocs;
     }
+
+    function syncProductCardQty(productId, rawQty, unitPrice, stockCount) {
+      const maxStock = Math.max(0, Number(stockCount || 0));
+      let qty = Math.floor(Number(rawQty || 1));
+      if (!Number.isFinite(qty) || qty < 1) qty = 1;
+      if (maxStock > 0 && qty > maxStock) qty = maxStock;
+
+      productQtyMap[productId] = qty;
+
+      const inputEl = document.getElementById("qtyInput_" + productId);
+      const totalEl = document.getElementById("qtyTotal_" + productId);
+      if (inputEl && Number(inputEl.value) !== qty) inputEl.value = String(qty);
+      if (totalEl) totalEl.textContent = (Number(unitPrice || 0) * qty).toLocaleString("vi-VN") + "đ";
+    }
+
+    window.changeProductQty = function (productId, delta, unitPrice, stockCount) {
+      const curEl = document.getElementById("qtyInput_" + productId);
+      const currentQty = Number(productQtyMap[productId] || (curEl ? curEl.value : 1));
+      syncProductCardQty(productId, currentQty + delta, unitPrice, stockCount);
+    };
+
+    window.onProductQtyInput = function (productId, unitPrice, stockCount) {
+      const inputEl = document.getElementById("qtyInput_" + productId);
+      const val = inputEl ? Number(inputEl.value) : 1;
+      syncProductCardQty(productId, val, unitPrice, stockCount);
+    };
 
     window.updateBulkCalc = function () {
       const qty = Number(document.getElementById("bulkQtyInput").value);
@@ -462,9 +493,7 @@
 
       authBox.style.display = "none";
       shopArea.style.display = "block";
-      if (adminBox) {
-        adminBox.style.display = isAdmin() ? "block" : "none";
-      }
+      if (adminBox) adminBox.style.display = isAdmin() ? "block" : "none";
 
       try {
         const userRef = doc(db, "users", user.uid);
@@ -506,9 +535,7 @@
           }
         }
 
-        if (!targetDoc) {
-          return showErr("Không tìm thấy tài khoản nào khớp với \"" + rawTarget + "\".");
-        }
+        if (!targetDoc) return showErr("Không tìm thấy tài khoản nào khớp với \"" + rawTarget + "\".");
 
         const oldBalance = Number(targetDoc.data().balance || 0);
         const newBalance = oldBalance + amount;
@@ -530,7 +557,6 @@
         showErr("Lỗi cộng số dư: " + e.message);
       }
     };
-
     function buildKeyRowsHtml(docsList, scope) {
       let html = "";
       docsList.forEach(function (docSnap) {
@@ -559,7 +585,8 @@
     window.filterAdminKeys = function (scope) {
       const inputId = scope === "bulk" ? "bulkSearchInput" : "pkgSearchInput";
       const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
-      const kw = (document.getElementById(inputId)?.value || "").trim().toLowerCase();
+      const inputEl = document.getElementById(inputId);
+      const kw = (inputEl ? inputEl.value : "").trim().toLowerCase();
       const rows = document.querySelectorAll("#" + listId + " .key-row");
       rows.forEach(function (row) {
         const code = row.getAttribute("data-code") || "";
@@ -632,9 +659,7 @@
       for (const kDoc of unsoldSnap.docs) {
         const kData = kDoc.data();
         if (isExpiredKey(kData)) {
-          try {
-            await deleteDoc(doc(db, "keys", kDoc.id));
-          } catch (e) {}
+          try { await deleteDoc(doc(db, "keys", kDoc.id)); } catch (e) {}
           continue;
         }
         const pid = kData.productId || "";
@@ -658,19 +683,39 @@
         const safeName = String(p.name || "").replace(/'/g, "");
         const stockCount = countByProduct[d.id] || 0;
 
+        let chosenQty = Number(productQtyMap[d.id] || 1);
+        if (!Number.isFinite(chosenQty) || chosenQty < 1) chosenQty = 1;
+        if (stockCount > 0 && chosenQty > stockCount) chosenQty = stockCount;
+        productQtyMap[d.id] = chosenQty;
+
+        const estTotal = price * chosenQty;
         const delProdBtn = adminMode
-          ? `<button class="red" style="margin-top:4px; padding:7px 10px; font-size:13px;" onclick="deleteProduct('${d.id}', '${safeName}')">Xóa gói</button>`
+          ? `<button class="red" style="width:auto; margin:0; padding:7px 12px; font-size:13px;" onclick="deleteProduct('${d.id}', '${safeName}')">Xóa gói</button>`
           : "";
 
         html += `
-          <div class="item">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <div class="item prod-card">
+            <div class="prod-top">
               <div>
                 <b>${p.name}</b> <span class="badge">Còn ${stockCount} key</span>
-                <div style="color:#38bdf8; font-weight:bold; margin-top:4px;">${price.toLocaleString("vi-VN")}đ</div>
+                <div style="color:#94a3b8; font-size:13px; margin-top:4px;">Đơn giá: ${price.toLocaleString("vi-VN")}đ/key</div>
               </div>
-              <div style="width:115px;">
-                <button ${stockCount === 0 ? "disabled style='opacity:0.5'" : ""} onclick="buyKey('${d.id}', '${safeName}', ${price})">
+              <div style="text-align:right;">
+                <div style="font-size:12px; color:#94a3b8;">Thành tiền</div>
+                <div id="qtyTotal_${d.id}" style="color:#38bdf8; font-weight:bold; font-size:16px;">${estTotal.toLocaleString("vi-VN")}đ</div>
+              </div>
+            </div>
+
+            <div class="prod-bottom">
+              <div class="qty-box">
+                <span style="font-size:13px; color:#cbd5e1; margin-right:2px;">Số lượng:</span>
+                <button type="button" class="gray qty-btn" ${stockCount === 0 ? "disabled" : ""} onclick="changeProductQty('${d.id}', -1, ${price}, ${stockCount})">-</button>
+                <input id="qtyInput_${d.id}" class="qty-num" type="number" min="1" max="${Math.max(1, stockCount)}" step="1" value="${chosenQty}" ${stockCount === 0 ? "disabled" : ""} oninput="onProductQtyInput('${d.id}', ${price}, ${stockCount})" />
+                <button type="button" class="gray qty-btn" ${stockCount === 0 ? "disabled" : ""} onclick="changeProductQty('${d.id}', 1, ${price}, ${stockCount})">+</button>
+              </div>
+
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button class="green" style="width:auto; margin:0; padding:8px 16px; font-size:14px; ${stockCount === 0 ? "opacity:0.5;" : ""}" ${stockCount === 0 ? "disabled" : ""} onclick="buyKey('${d.id}', '${safeName}', ${price})">
                   Mua ngay
                 </button>
                 ${delProdBtn}
@@ -723,6 +768,7 @@
           await deleteDoc(doc(db, "keys", kDoc.id));
         }
         await deleteDoc(doc(db, "products", productId));
+        delete productQtyMap[productId];
         showMsg("Đã xóa gói \"" + (productName || productId) + "\".");
         await loadProducts();
       } catch (e) {
@@ -833,10 +879,20 @@
       }
     };
 
-    window.buyKey = async function (productId, productName, price) {
+    window.buyKey = async function (productId, productName, unitPrice) {
       if (!currentUser) return showErr("Vui lòng đăng nhập.");
-      if (currentBalance < price) {
-        return showErr("Số dư không đủ! Cần " + price.toLocaleString("vi-VN") + "đ, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ.");
+
+      const inputEl = document.getElementById("qtyInput_" + productId);
+      const qty = Math.floor(Number(inputEl ? inputEl.value : (productQtyMap[productId] || 1)));
+      if (!Number.isFinite(qty) || qty < 1) {
+        return showErr("Số lượng mua tối thiểu là 1 key.");
+      }
+
+      const totalPrice = Number(unitPrice || 0) * qty;
+      if (currentBalance < totalPrice) {
+        return showErr(
+          "Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ cho " + qty + " key, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ."
+        );
       }
 
       try {
@@ -845,36 +901,46 @@
           await loadProducts();
           return showErr("Gói này đã hết key còn hạn trong kho!");
         }
+        if (validStockDocs.length < qty) {
+          await loadProducts();
+          return showErr("Gói này chỉ còn " + validStockDocs.length + " key trong kho, không đủ " + qty + " key.");
+        }
 
-        const keyDoc = validStockDocs[0];
-        const keyCode = String(keyDoc.data().code || "").trim();
-        const newBalance = currentBalance - price;
-        const nowText = new Date().toLocaleString("vi-VN");
+        const selectedDocs = validStockDocs.slice(0, qty);
+        const boughtKeys = [];
+        for (const keyDoc of selectedDocs) {
+          boughtKeys.push(String(keyDoc.data().code || "").trim());
+          await updateDoc(doc(db, "keys", keyDoc.id), {
+            sold: true,
+            buyerId: currentUser.uid,
+            buyerEmail: currentUser.email,
+            soldAt: serverTimestamp()
+          });
+        }
 
-        await updateDoc(doc(db, "keys", keyDoc.id), {
-          sold: true,
-          buyerId: currentUser.uid,
-          buyerEmail: currentUser.email,
-          soldAt: serverTimestamp()
-        });
-
+        const newBalance = currentBalance - totalPrice;
         await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
+
+        const orderTitle = qty > 1 ? (productName + " x" + qty) : productName;
+        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
+        const nowText = new Date().toLocaleString("vi-VN");
 
         await addDoc(collection(db, "orders"), {
           userId: currentUser.uid,
           productId: productId,
-          productName: productName,
-          price: price,
-          keyCode: keyCode,
+          productName: orderTitle,
+          price: totalPrice,
+          keyCode: joinedKeys,
           purchasedAtText: nowText,
           createdAt: serverTimestamp()
         });
 
         currentBalance = newBalance;
+        productQtyMap[productId] = 1;
         renderUserBar();
-        showMsg("Mua thành công gói \"" + productName + "\"!");
+        showMsg("Mua thành công " + qty + " key gói \"" + productName + "\"!");
         await Promise.all([loadProducts(), loadOrders()]);
-        openKeyModal(productName, keyCode, nowText);
+        openKeyModal(orderTitle, joinedKeys, nowText);
       } catch (e) {
         showErr("Lỗi khi mua key: " + e.message);
       }
