@@ -14,6 +14,9 @@
     button { background: #0284c7; color: #fff; font-weight: bold; border: none; cursor: pointer; }
     button:hover { background: #0369a1; }
     button.green { background: #16a34a; }
+    button.green:hover { background: #15803d; }
+    button.red { background: #dc2626; }
+    button.red:hover { background: #b91c1c; }
     button.gray { background: #475569; }
     .row { display: flex; gap: 8px; }
     .row > * { flex: 1; }
@@ -22,6 +25,8 @@
     .msg { padding: 10px; border-radius: 8px; background: #14532d; color: #dcfce7; margin: 8px 0; display: none; }
     .err { padding: 10px; border-radius: 8px; background: #7f1d1d; color: #fee2e2; margin: 8px 0; display: none; }
     .key-box { background: #020617; border: 1px dashed #22c55e; padding: 10px; border-radius: 8px; color: #4ade80; font-weight: bold; word-break: break-all; margin-top: 8px; }
+    .key-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+    .key-code { font-family: monospace; color: #4ade80; word-break: break-all; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -49,6 +54,15 @@
     <div class="box">
       <h2>🛒 Danh sách gói Key</h2>
       <div id="productsList">Đang tải gói hàng...</div>
+
+      <div class="item" style="margin-top:12px; border-color:#38bdf8;">
+        <b>⚡ Mua tùy chọn số lượng (tối thiểu 20 key - 400đ/key)</b>
+        <div style="font-size:13px; color:#94a3b8; margin-top:4px;">
+          Nhập số lượng từ 20 key trở lên: <span id="bulkCalcText" style="color:#38bdf8; font-weight:bold;">0đ</span>
+        </div>
+        <input id="bulkQtyInput" type="number" min="20" step="1" placeholder="Nhập số lượng key (VD: 20)" oninput="updateBulkCalc()" />
+        <button class="green" onclick="buyBulkKeys()">Mua tùy chọn</button>
+      </div>
     </div>
 
     <div class="box">
@@ -70,7 +84,7 @@
     </div>
 
     <!-- KHU VỰC ADMIN -->
-    <div class="box"id="adminArea"style="display:none;">
+    <div class="box" id="adminArea" style="display:none;">
       <h2>🛠️ Quản lý kho Key (Admin)</h2>
       <p style="font-size:13px; color:#94a3b8; margin-top:0;">
         Mẹo: Khi chạy thật nên khóa quyền ghi/đọc nhạy cảm trong Firestore Rules.
@@ -81,9 +95,12 @@
       <button class="green" onclick="addProduct()">+ Thêm gói hàng</button>
 
       <h3 style="margin-top:16px;">2. Nhập kho Key (mỗi dòng 1 key)</h3>
-      <select id="keyProdSelect"></select>
+      <select id="keyProdSelect" onchange="loadAdminKeys()"></select>
       <textarea id="keysTextarea" rows="5" placeholder="KEY-111&#10;KEY-222&#10;KEY-333"></textarea>
       <button onclick="importKeys()">Nhập Key vào kho</button>
+
+      <h3 style="margin-top:16px;">3. Key chưa bán trong gói đang chọn</h3>
+      <div id="adminKeysList">Đang tải danh sách key...</div>
     </div>
   </div>
 
@@ -94,7 +111,7 @@
       signOut, onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import {
-      getFirestore, doc, getDoc, setDoc, updateDoc, addDoc,
+      getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
       collection, getDocs, query, where, limit, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -108,12 +125,20 @@
       measurementId: "G-296WHXVZ4V"
     };
 
+    const ADMIN_EMAIL = "htheanh817@gmail.com";
+    const BULK_MIN_QTY = 20;
+    const BULK_UNIT_PRICE = 400;
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
     let currentUser = null;
     let currentBalance = 0;
+
+    function isAdmin() {
+      return Boolean(currentUser && currentUser.email === ADMIN_EMAIL);
+    }
 
     function showMsg(text) {
       const el = document.getElementById("msgBox");
@@ -129,6 +154,36 @@
       msg.style.display = "none";
       el.textContent = text;
       el.style.display = "block";
+    }
+
+    window.updateBulkCalc = function() {
+      const qty = Number(document.getElementById("bulkQtyInput").value);
+      const calcEl = document.getElementById("bulkCalcText");
+      if (!Number.isFinite(qty) || qty <= 0) {
+        calcEl.textContent = "0đ";
+        return;
+      }
+      const total = qty * BULK_UNIT_PRICE;
+      calcEl.textContent = `${total.toLocaleString("vi-VN")}đ` + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
+    };
+
+    function renderUserBar() {
+      const userBar = document.getElementById("userBar");
+      if (!currentUser) {
+        userBar.innerHTML = "Chưa đăng nhập.";
+        return;
+      }
+      userBar.innerHTML = `
+        <div class="row" style="align-items:center;">
+          <div>
+            <div><b>Tài khoản:</b> ${currentUser.email}</div>
+            <div><b>Số dư:</b> <span style="color:#4ade80; font-size:18px; font-weight:bold;">${currentBalance.toLocaleString("vi-VN")}đ</span></div>
+          </div>
+          <div style="max-width:120px;">
+            <button class="gray" onclick="logoutUser()">Đăng xuất</button>
+          </div>
+        </div>
+      `;
     }
 
     window.registerUser = async function() {
@@ -167,21 +222,21 @@
       currentUser = user;
       const authBox = document.getElementById("authBox");
       const shopArea = document.getElementById("shopArea");
-      const userBar = document.getElementById("userBar");
+      const adminBox = document.getElementById("adminArea");
 
       if (!user) {
         authBox.style.display = "block";
         shopArea.style.display = "none";
-        userBar.innerHTML = "Chưa đăng nhập.";
+        if (adminBox) adminBox.style.display = "none";
+        renderUserBar();
         return;
       }
 
       authBox.style.display = "none";
       shopArea.style.display = "block";
-const adminBox = document.getElementById("adminArea");
-if (adminBox) {
-  adminBox.style.display = user.email === "htheanh817@gmail.com" ? "block" : "none";
-}
+      if (adminBox) {
+        adminBox.style.display = isAdmin() ? "block" : "none";
+      }
 
       const userRef = doc(db, "users", user.uid);
       const snap = await getDoc(userRef);
@@ -192,18 +247,7 @@ if (adminBox) {
         currentBalance = Number(snap.data().balance || 0);
       }
 
-      userBar.innerHTML = `
-        <div class="row" style="align-items:center;">
-          <div>
-            <div><b>Tài khoản:</b> ${user.email}</div>
-            <div><b>Số dư:</b> <span style="color:#4ade80; font-size:18px; font-weight:bold;">${currentBalance.toLocaleString("vi-VN")}đ</span></div>
-          </div>
-          <div style="max-width:120px;">
-            <button class="gray" onclick="logoutUser()">Đăng xuất</button>
-          </div>
-        </div>
-      `;
-
+      renderUserBar();
       document.getElementById("transferNote").textContent = "NAP " + user.uid.slice(0, 8).toUpperCase();
 
       await loadProducts();
@@ -213,37 +257,46 @@ if (adminBox) {
     async function loadProducts() {
       const listEl = document.getElementById("productsList");
       const selectEl = document.getElementById("keyProdSelect");
+      const prevSelected = selectEl.value;
       const snap = await getDocs(collection(db, "products"));
 
       if (snap.empty) {
         listEl.innerHTML = "Chưa có gói key nào. Hãy thêm ở phần Admin bên dưới.";
         selectEl.innerHTML = `<option value="">-- Chưa có gói --</option>`;
+        document.getElementById("adminKeysList").innerHTML = "Chưa có gói nào.";
         return;
       }
 
       let html = "";
       let opts = "";
+      const adminMode = isAdmin();
 
       for (const d of snap.docs) {
         const p = d.data();
         const price = Number(p.price || 0);
+        const safeName = String(p.name || "").replace(/'/g, "");
 
         const stockSnap = await getDocs(
           query(collection(db, "keys"), where("productId", "==", d.id), where("sold", "==", false))
         );
         const stockCount = stockSnap.size;
 
+        const delProdBtn = adminMode
+          ? `<button class="red" style="margin-top:4px; padding:7px 10px; font-size:13px;" onclick="deleteProduct('${d.id}', '${safeName}')">Xóa gói</button>`
+          : "";
+
         html += `
           <div class="item">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
               <div>
                 <b>${p.name}</b> <span class="badge">Còn ${stockCount} key</span>
                 <div style="color:#38bdf8; font-weight:bold; margin-top:4px;">${price.toLocaleString("vi-VN")}đ</div>
               </div>
-              <div style="width:110px;">
-                <button ${stockCount === 0 ? "disabled style='opacity:0.5'" : ""} onclick="buyKey('${d.id}', '${p.name.replace(/'/g, "")}', ${price})">
+              <div style="width:115px;">
+                <button ${stockCount === 0 ? "disabled style='opacity:0.5'" : ""} onclick="buyKey('${d.id}', '${safeName}', ${price})">
                   Mua ngay
                 </button>
+                ${delProdBtn}
               </div>
             </div>
           </div>
@@ -254,7 +307,149 @@ if (adminBox) {
 
       listEl.innerHTML = html;
       selectEl.innerHTML = opts;
+      if (prevSelected && [...selectEl.options].some(o => o.value === prevSelected)) {
+        selectEl.value = prevSelected;
+      }
+
+      if (adminMode) {
+        await loadAdminKeys();
+      }
     }
+
+    window.loadAdminKeys = async function() {
+      if (!isAdmin()) return;
+      const listEl = document.getElementById("adminKeysList");
+      const productId = document.getElementById("keyProdSelect").value;
+      if (!productId) {
+        listEl.innerHTML = "Chưa chọn gói.";
+        return;
+      }
+
+      const snap = await getDocs(
+        query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false))
+      );
+
+      if (snap.empty) {
+        listEl.innerHTML = "<div style='color:#94a3b8; font-size:14px;'>Gói này hiện không có key chưa bán nào.</div>";
+        return;
+      }
+
+      let html = "";
+      snap.forEach((docSnap) => {
+        const k = docSnap.data();
+        const safeCode = String(k.code || "").replace(/'/g, "");
+        html += `
+          <div class="key-row">
+            <span class="key-code">${k.code}</span>
+            <button class="red" style="width:auto; margin:0; padding:6px 12px; font-size:13px;" onclick="deleteKey('${docSnap.id}', '${safeCode}')">
+              Xóa key
+            </button>
+          </div>
+        `;
+      });
+
+      listEl.innerHTML = html;
+    };
+
+    window.deleteProduct = async function(productId, productName) {
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa gói hàng.");
+      if (!productId) return;
+      if (!confirm(`Xóa gói "${productName || productId}" và toàn bộ key chưa bán của gói này?`)) return;
+
+      try {
+        const keysSnap = await getDocs(
+          query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false))
+        );
+        for (const kDoc of keysSnap.docs) {
+          await deleteDoc(doc(db, "keys", kDoc.id));
+        }
+        await deleteDoc(doc(db, "products", productId));
+        showMsg(`Đã xóa gói "${productName || productId}".`);
+        await loadProducts();
+      } catch (e) {
+        showErr("Lỗi xóa gói: " + e.message);
+      }
+    };
+
+    window.deleteKey = async function(keyDocId, keyCode) {
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.");
+      if (!keyDocId) return;
+      if (!confirm(`Xóa key "${keyCode || keyDocId}" khỏi kho?`)) return;
+
+      try {
+        await deleteDoc(doc(db, "keys", keyDocId));
+        showMsg(`Đã xóa key "${keyCode || keyDocId}".`);
+        await loadProducts();
+      } catch (e) {
+        showErr("Lỗi xóa key: " + e.message);
+      }
+    };
+
+    window.buyBulkKeys = async function() {
+      if (!currentUser) return showErr("Vui lòng đăng nhập.");
+
+      const qty = Number(document.getElementById("bulkQtyInput").value);
+      if (!Number.isInteger(qty) || qty < BULK_MIN_QTY) {
+        return showErr(`Vui lòng nhập số lượng nguyên từ ${BULK_MIN_QTY} key trở lên.`);
+      }
+
+      const totalPrice = qty * BULK_UNIT_PRICE;
+      if (currentBalance < totalPrice) {
+        return showErr(
+          `Số dư không đủ! Cần ${totalPrice.toLocaleString("vi-VN")}đ cho ${qty} key, bạn đang có ${currentBalance.toLocaleString("vi-VN")}đ.`
+        );
+      }
+
+      try {
+        const stockQ = query(
+          collection(db, "keys"),
+          where("sold", "==", false),
+          limit(qty)
+        );
+        const stockSnap = await getDocs(stockQ);
+
+        if (stockSnap.size < qty) {
+          return showErr(`Kho hiện chỉ còn ${stockSnap.size} key chưa bán, không đủ ${qty} key.`);
+        }
+
+        const boughtKeys = [];
+        for (const keyDoc of stockSnap.docs) {
+          const kData = keyDoc.data();
+          boughtKeys.push(kData.code);
+
+          await updateDoc(doc(db, "keys", keyDoc.id), {
+            sold: true,
+            buyerId: currentUser.uid,
+            buyerEmail: currentUser.email,
+            soldAt: serverTimestamp()
+          });
+        }
+
+        const newBalance = currentBalance - totalPrice;
+        await updateDoc(doc(db, "users", currentUser.uid), {
+          balance: newBalance
+        });
+
+        await addDoc(collection(db, "orders"), {
+          userId: currentUser.uid,
+          productId: "bulk_400",
+          productName: `Gói tùy chọn ${qty} key (400đ/key)`,
+          price: totalPrice,
+          keyCode: boughtKeys.join(" | "),
+          createdAt: serverTimestamp()
+        });
+
+        currentBalance = newBalance;
+        document.getElementById("bulkQtyInput").value = "";
+        updateBulkCalc();
+        renderUserBar();
+        showMsg(`Mua thành công ${qty} key (${totalPrice.toLocaleString("vi-VN")}đ)!`);
+        await loadProducts();
+        await loadOrders();
+      } catch (e) {
+        showErr("Lỗi khi mua key tùy chọn: " + e.message);
+      }
+    };
 
     window.buyKey = async function(productId, productName, price) {
       if (!currentUser) return showErr("Vui lòng đăng nhập.");
@@ -300,8 +495,10 @@ if (adminBox) {
         });
 
         currentBalance = newBalance;
+        renderUserBar();
         showMsg(`Mua thành công gói "${productName}"! Key của bạn: ${keyCode}`);
-        onAuthStateChanged(auth, currentUser);
+        await loadProducts();
+        await loadOrders();
       } catch (e) {
         showErr("Lỗi khi mua key: " + e.message);
       }
@@ -332,6 +529,7 @@ if (adminBox) {
     }
 
     window.addProduct = async function() {
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được thêm gói hàng.");
       const name = document.getElementById("prodName").value.trim();
       const price = Number(document.getElementById("prodPrice").value);
       if (!name || !price || price <= 0) return showErr("Nhập đủ tên gói và giá hợp lệ.");
@@ -352,6 +550,7 @@ if (adminBox) {
     };
 
     window.importKeys = async function() {
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.");
       const productId = document.getElementById("keyProdSelect").value;
       const raw = document.getElementById("keysTextarea").value;
       const lines = raw.split("\n").map(x => x.trim()).filter(Boolean);
