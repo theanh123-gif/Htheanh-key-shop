@@ -56,7 +56,10 @@
       <div id="productsList">Đang tải gói hàng...</div>
 
       <div class="item" style="margin-top:12px; border-color:#38bdf8;">
-        <b>⚡ Mua tùy chọn số lượng (tối thiểu 20 key - 400đ/key)</b>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <b>⚡ Mua tùy chọn số lượng (tối thiểu 20 key - 400đ/key)</b>
+          <span class="badge" id="bulkStockBadge">Kho sỉ: 0 key</span>
+        </div>
         <div style="font-size:13px; color:#94a3b8; margin-top:4px;">
           Nhập số lượng từ 20 key trở lên: <span id="bulkCalcText" style="color:#38bdf8; font-weight:bold;">0đ</span>
         </div>
@@ -89,18 +92,31 @@
       <p style="font-size:13px; color:#94a3b8; margin-top:0;">
         Mẹo: Khi chạy thật nên khóa quyền ghi/đọc nhạy cảm trong Firestore Rules.
       </p>
+
       <h3>1. Tạo gói Key mới</h3>
       <input id="prodName" placeholder="Tên gói (VD: Key Quét Link Rương 1 Ngày)" />
       <input id="prodPrice" type="number" placeholder="Giá bán VNĐ (VD: 10000)" />
       <button class="green" onclick="addProduct()">+ Thêm gói hàng</button>
 
-      <h3 style="margin-top:16px;">2. Nhập kho Key (mỗi dòng 1 key)</h3>
+      <h3 style="margin-top:16px;">2. Nhập kho Key theo gói (mỗi dòng 1 key)</h3>
       <select id="keyProdSelect" onchange="loadAdminKeys()"></select>
       <textarea id="keysTextarea" rows="5" placeholder="KEY-111&#10;KEY-222&#10;KEY-333"></textarea>
-      <button onclick="importKeys()">Nhập Key vào kho</button>
+      <button onclick="importKeys()">Nhập Key vào kho gói</button>
 
       <h3 style="margin-top:16px;">3. Key chưa bán trong gói đang chọn</h3>
       <div id="adminKeysList">Đang tải danh sách key...</div>
+
+      <div class="item" style="margin-top:18px; border-color:#22c55e;">
+        <h3 style="color:#4ade80; margin-bottom:6px;">4. Kho riêng Mua tùy chọn (400đ/key)</h3>
+        <div style="font-size:13px; color:#94a3b8; margin-bottom:6px;">
+          Tách biệt hoàn toàn với các gói khác số giờ. Đang còn: <b id="adminBulkStockText" style="color:#4ade80;">0 key</b>
+        </div>
+        <textarea id="bulkKeysTextarea" rows="5" placeholder="KEY-SI-001&#10;KEY-SI-002&#10;KEY-SI-003"></textarea>
+        <button class="green" onclick="importBulkKeys()">Nhập Key vào kho Tùy chọn</button>
+
+        <h3 style="margin-top:14px; font-size:15px;">Danh sách key chưa bán trong kho Tùy chọn</h3>
+        <div id="adminBulkKeysList">Đang tải key tùy chọn...</div>
+      </div>
     </div>
   </div>
 
@@ -126,6 +142,7 @@
     };
 
     const ADMIN_EMAIL = "htheanh817@gmail.com";
+    const BULK_PRODUCT_ID = "bulk_400";
     const BULK_MIN_QTY = 20;
     const BULK_UNIT_PRICE = 400;
 
@@ -251,8 +268,45 @@
       document.getElementById("transferNote").textContent = "NAP " + user.uid.slice(0, 8).toUpperCase();
 
       await loadProducts();
+      await loadBulkStock();
       await loadOrders();
     });
+
+    async function loadBulkStock() {
+      const snap = await getDocs(
+        query(collection(db, "keys"), where("productId", "==", BULK_PRODUCT_ID), where("sold", "==", false))
+      );
+      const count = snap.size;
+      const badge = document.getElementById("bulkStockBadge");
+      if (badge) badge.textContent = `Kho sỉ: ${count} key`;
+
+      if (isAdmin()) {
+        const adminCountText = document.getElementById("adminBulkStockText");
+        const adminListEl = document.getElementById("adminBulkKeysList");
+        if (adminCountText) adminCountText.textContent = `${count} key`;
+
+        if (adminListEl) {
+          if (snap.empty) {
+            adminListEl.innerHTML = "<div style='color:#94a3b8; font-size:14px;'>Kho tùy chọn hiện chưa có key nào.</div>";
+          } else {
+            let html = "";
+            snap.forEach((docSnap) => {
+              const k = docSnap.data();
+              const safeCode = String(k.code || "").replace(/'/g, "");
+              html += `
+                <div class="key-row">
+                  <span class="key-code">${k.code}</span>
+                  <button class="red" style="width:auto; margin:0; padding:6px 12px; font-size:13px;" onclick="deleteKey('${docSnap.id}', '${safeCode}')">
+                    Xóa key
+                  </button>
+                </div>
+              `;
+            });
+            adminListEl.innerHTML = html;
+          }
+        }
+      }
+    }
 
     async function loadProducts() {
       const listEl = document.getElementById("productsList");
@@ -380,8 +434,33 @@
         await deleteDoc(doc(db, "keys", keyDocId));
         showMsg(`Đã xóa key "${keyCode || keyDocId}".`);
         await loadProducts();
+        await loadBulkStock();
       } catch (e) {
         showErr("Lỗi xóa key: " + e.message);
+      }
+    };
+
+    window.importBulkKeys = async function() {
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được nhập key.");
+      const raw = document.getElementById("bulkKeysTextarea").value;
+      const lines = raw.split("\n").map(x => x.trim()).filter(Boolean);
+
+      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key cho kho Tùy chọn.");
+
+      try {
+        for (const k of lines) {
+          await addDoc(collection(db, "keys"), {
+            productId: BULK_PRODUCT_ID,
+            code: k,
+            sold: false,
+            createdAt: serverTimestamp()
+          });
+        }
+        document.getElementById("bulkKeysTextarea").value = "";
+        showMsg(`Đã nhập thành công ${lines.length} key vào kho Tùy chọn!`);
+        await loadBulkStock();
+      } catch (e) {
+        showErr("Lỗi nhập key Tùy chọn: " + e.message);
       }
     };
 
@@ -403,13 +482,14 @@
       try {
         const stockQ = query(
           collection(db, "keys"),
+          where("productId", "==", BULK_PRODUCT_ID),
           where("sold", "==", false),
           limit(qty)
         );
         const stockSnap = await getDocs(stockQ);
 
         if (stockSnap.size < qty) {
-          return showErr(`Kho hiện chỉ còn ${stockSnap.size} key chưa bán, không đủ ${qty} key.`);
+          return showErr(`Kho tùy chọn hiện chỉ còn ${stockSnap.size} key chưa bán, không đủ ${qty} key.`);
         }
 
         const boughtKeys = [];
@@ -432,7 +512,7 @@
 
         await addDoc(collection(db, "orders"), {
           userId: currentUser.uid,
-          productId: "bulk_400",
+          productId: BULK_PRODUCT_ID,
           productName: `Gói tùy chọn ${qty} key (400đ/key)`,
           price: totalPrice,
           keyCode: boughtKeys.join(" | "),
@@ -444,7 +524,7 @@
         updateBulkCalc();
         renderUserBar();
         showMsg(`Mua thành công ${qty} key (${totalPrice.toLocaleString("vi-VN")}đ)!`);
-        await loadProducts();
+        await loadBulkStock();
         await loadOrders();
       } catch (e) {
         showErr("Lỗi khi mua key tùy chọn: " + e.message);
