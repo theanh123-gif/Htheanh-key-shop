@@ -780,7 +780,11 @@
         }
 
         syncAdminAccessUI(); renderProfileAndStats();
-        await Promise.all([loadProducts(), loadBulkStock(), loadCtvStock(), loadOrders(), loadBalanceHistory(), loadLeaderboard(), loadAdminList(), loadCtvList()]);
+        await Promise.all([
+          window.loadProducts(), window.loadBulkStock(), window.loadCtvStock(),
+          window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard(),
+          loadAdminList(), window.loadCtvList()
+        ]);
       } catch (e) { showErr("Lỗi tải dữ liệu: " + e.message, "globalErrBox"); }
     });
 
@@ -849,13 +853,49 @@
         if (currentUser && targetDoc.id === currentUser.uid) { currentIsAdmin = Boolean(grantAdmin); syncAdminAccessUI(); renderProfileAndStats(); }
 
         document.getElementById("adminRoleTargetInput").value = "";
-        await Promise.all([loadAdminList(), loadProducts(), loadBulkStock(), loadCtvStock()]);
+        await Promise.all([loadAdminList(), window.loadProducts(), window.loadBulkStock(), window.loadCtvStock()]);
         showMsg(grantAdmin ? ("Đã cấp quyền Admin cho \"" + label + "\"!") : ("Đã xóa quyền Admin của \"" + label + "\"!"), "adminRoleFeedback");
       } catch (e) { showErr("Lỗi cập nhật quyền Admin: " + e.message, "adminRoleFeedback"); }
     };
+
+    window.__htheanhCore = {
+      db,
+      BULK_PRODUCT_ID, BULK_MIN_QTY, BULK_UNIT_PRICE,
+      CTV_PRODUCT_ID, CTV_UNIT_PRICE,
+      getCurrentUser: function () { return currentUser; },
+      getCurrentBalance: function () { return currentBalance; },
+      setCurrentBalance: function (val) { currentBalance = Number(val || 0); },
+      getCurrentIsAdmin: function () { return currentIsAdmin; },
+      setCurrentIsAdmin: function (val) { currentIsAdmin = Boolean(val); },
+      getCurrentIsCtv: function () { return currentIsCtv; },
+      setCurrentIsCtv: function (val) { currentIsCtv = Boolean(val); },
+      getCurrentTotalDeposited: function () { return currentTotalDeposited; },
+      setCurrentTotalDeposited: function (val) { currentTotalDeposited = Number(val || 0); },
+      getProductsCache: function () { return productsCache; },
+      setProductsCache: function (val) { productsCache = val; },
+      getSelectedProductId: function () { return selectedProductId; },
+      setSelectedProductId: function (val) { selectedProductId = val; },
+      isAdmin, canBuyCtv, getCleanUsername, clearInlineFeedbacks,
+      showMsg, showErr, getTimestampMs, formatPurchaseTime, formatKeyAgeText,
+      normalizeKeysLines, countKeysInText, logBalanceChange,
+      fetchAndCleanUnsoldKeysByProduct, renderProfileAndStats, updateSelectedPkgSummary,
+      findUserDocByInput, loadAdminList
+    };
   </script>
   <script type="module">
-    async function loadCtvList() {
+    import {
+      doc, updateDoc, addDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const core = window.__htheanhCore;
+    const {
+      db, BULK_PRODUCT_ID, CTV_PRODUCT_ID,
+      isAdmin, clearInlineFeedbacks, showMsg, showErr,
+      formatKeyAgeText, logBalanceChange, fetchAndCleanUnsoldKeysByProduct,
+      renderProfileAndStats, findUserDocByInput, loadAdminList
+    } = core;
+
+    window.loadCtvList = async function () {
       const box = document.getElementById("ctvListBox");
       if (!box) return;
       try {
@@ -869,15 +909,16 @@
         });
         box.innerHTML = html;
       } catch (e) { box.innerHTML = "<span style='color:#94a3b8;'>Không tải được danh sách CTV.</span>"; }
-    }
+    };
 
     window.quickRemoveCtv = async function (uid, label) {
       if (!isAdmin()) return;
       if (!confirm("Gỡ quyền CTV của \"" + label + "\"?")) return;
       try {
         await updateDoc(doc(db, "users", uid), { isCtv: false });
-        if (currentUser && currentUser.uid === uid) { currentIsCtv = false; renderProfileAndStats(); }
-        await loadCtvList();
+        const curUser = core.getCurrentUser();
+        if (curUser && curUser.uid === uid) { core.setCurrentIsCtv(false); renderProfileAndStats(); }
+        await window.loadCtvList();
         showMsg("Đã gỡ quyền CTV của \"" + label + "\".", "adminCtvFeedback");
       } catch (e) { showErr("Lỗi gỡ CTV: " + e.message, "adminCtvFeedback"); }
     };
@@ -894,9 +935,10 @@
         const uData = targetDoc.data();
         const label = String(uData.username || uData.email || targetDoc.id).trim();
         await updateDoc(doc(db, "users", targetDoc.id), { isCtv: Boolean(makeCtv) });
-        if (currentUser && targetDoc.id === currentUser.uid) { currentIsCtv = Boolean(makeCtv); renderProfileAndStats(); }
+        const curUser = core.getCurrentUser();
+        if (curUser && targetDoc.id === curUser.uid) { core.setCurrentIsCtv(Boolean(makeCtv)); renderProfileAndStats(); }
         document.getElementById("ctvTargetInput").value = "";
-        await loadCtvList();
+        await window.loadCtvList();
         showMsg(makeCtv ? ("Đã thêm \"" + label + "\" làm CTV!") : ("Đã gỡ quyền CTV của \"" + label + "\"."), "adminCtvFeedback");
       } catch (e) { showErr("Lỗi cập nhật CTV: " + e.message, "adminCtvFeedback"); }
     };
@@ -921,10 +963,16 @@
 
         await updateDoc(doc(db, "users", targetDoc.id), { balance: newBalance, totalDeposited: newDep });
         await logBalanceChange(targetDoc.id, uData.email || targetDoc.id, amount, newBalance, amount > 0 ? "Admin cộng số dư" : "Admin điều chỉnh số dư");
-        if (currentUser && targetDoc.id === currentUser.uid) { currentBalance = newBalance; currentTotalDeposited = newDep; renderProfileAndStats(); await loadBalanceHistory(); }
+        const curUser = core.getCurrentUser();
+        if (curUser && targetDoc.id === curUser.uid) {
+          core.setCurrentBalance(newBalance);
+          core.setCurrentTotalDeposited(newDep);
+          renderProfileAndStats();
+          await window.loadBalanceHistory();
+        }
 
         document.getElementById("addAmountInput").value = "";
-        await loadLeaderboard();
+        await window.loadLeaderboard();
         showMsg("Đã cập nhật số dư cho " + targetLabel + ": " + oldBalance.toLocaleString("vi-VN") + "đ -> " + newBalance.toLocaleString("vi-VN") + "đ", "adminBalFeedback");
       } catch (e) { showErr("Lỗi cộng số dư: " + e.message, "adminBalFeedback"); }
     };
@@ -946,8 +994,9 @@
 
         await updateDoc(doc(db, "users", targetDoc.id), { balance: 0 });
         await logBalanceChange(targetDoc.id, uData.email || targetDoc.id, -oldBalance, 0, "Admin xóa số dư về 0đ");
-        if (currentUser && targetDoc.id === currentUser.uid) { currentBalance = 0; renderProfileAndStats(); await loadBalanceHistory(); }
-        await loadLeaderboard();
+        const curUser = core.getCurrentUser();
+        if (curUser && targetDoc.id === curUser.uid) { core.setCurrentBalance(0); renderProfileAndStats(); await window.loadBalanceHistory(); }
+        await window.loadLeaderboard();
         showMsg("Đã xóa số dư của " + targetLabel + ": " + oldBalance.toLocaleString("vi-VN") + "đ -> 0đ", "adminBalFeedback");
       } catch (e) { showErr("Lỗi xóa số dư: " + e.message, "adminBalFeedback"); }
     };
@@ -961,7 +1010,8 @@
       try {
         const targetDoc = await findUserDocByInput(rawTarget);
         if (!targetDoc) return showErr("Không tìm thấy người dùng khớp với \"" + rawTarget + "\".", "adminBalFeedback");
-        if (currentUser && targetDoc.id === currentUser.uid) return showErr("Không thể tự xóa tài khoản admin đang đăng nhập.", "adminBalFeedback");
+        const curUser = core.getCurrentUser();
+        if (curUser && targetDoc.id === curUser.uid) return showErr("Không thể tự xóa tài khoản admin đang đăng nhập.", "adminBalFeedback");
         const uData = targetDoc.data();
         const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
         if (!confirm("Xóa người dùng \"" + targetLabel + "\" cùng dữ liệu đơn hàng và biến động số dư của họ?")) return;
@@ -974,12 +1024,12 @@
         for (const lDoc of logsSnap.docs) { try { await deleteDoc(doc(db, "balance_logs", lDoc.id)); } catch (e) {} }
         await deleteDoc(doc(db, "users", targetDoc.id));
         document.getElementById("targetUserInput").value = "";
-        await Promise.all([loadLeaderboard(), loadCtvList(), loadAdminList()]);
+        await Promise.all([window.loadLeaderboard(), window.loadCtvList(), loadAdminList()]);
         showMsg("Đã xóa người dùng \"" + targetLabel + "\" thành công!", "adminBalFeedback");
       } catch (e) { showErr("Lỗi xóa người dùng: " + e.message, "adminBalFeedback"); }
     };
 
-    function buildKeyRowsHtml(docsList, scope) {
+    window.buildKeyRowsHtml = function (docsList, scope) {
       let html = "";
       docsList.forEach(function (docSnap) {
         const k = docSnap.data();
@@ -988,15 +1038,15 @@
         html += `<div class="key-row" data-code="${codeText.toLowerCase()}"><div class="key-left"><input type="checkbox" class="key-check key-cb-${scope}" value="${docSnap.id}" /><div><div class="key-code">${codeText}</div><div class="key-age">${formatKeyAgeText(k)}</div></div></div><button class="red" style="width:auto; margin:0; padding:6px 10px; font-size:12px;" onclick="deleteKey('${docSnap.id}', '${safeCode}', '${scope}')">Xóa</button></div>`;
       });
       return html;
-    }
+    };
 
-    function getListIdByScope(scope) { return scope === "bulk" ? "adminBulkKeysList" : (scope === "ctv" ? "adminCtvKeysList" : "adminKeysList"); }
-    function getInputIdByScope(scope) { return scope === "bulk" ? "bulkSearchInput" : (scope === "ctv" ? "ctvSearchInput" : "pkgSearchInput"); }
-    function getFeedbackIdByScope(scope) { return scope === "bulk" ? "adminBulkFeedback" : (scope === "ctv" ? "adminCtvStockFeedback" : "adminPkgKeysFeedback"); }
+    window.getListIdByScope = function (scope) { return scope === "bulk" ? "adminBulkKeysList" : (scope === "ctv" ? "adminCtvKeysList" : "adminKeysList"); };
+    window.getInputIdByScope = function (scope) { return scope === "bulk" ? "bulkSearchInput" : (scope === "ctv" ? "ctvSearchInput" : "pkgSearchInput"); };
+    window.getFeedbackIdByScope = function (scope) { return scope === "bulk" ? "adminBulkFeedback" : (scope === "ctv" ? "adminCtvStockFeedback" : "adminPkgKeysFeedback"); };
 
     window.filterAdminKeys = function (scope) {
-      const inputEl = document.getElementById(getInputIdByScope(scope));
-      const listId = getListIdByScope(scope);
+      const inputEl = document.getElementById(window.getInputIdByScope(scope));
+      const listId = window.getListIdByScope(scope);
       const kw = (inputEl ? inputEl.value : "").trim().toLowerCase();
       document.querySelectorAll("#" + listId + " .key-row").forEach(function (row) {
         const code = row.getAttribute("data-code") || "";
@@ -1005,7 +1055,7 @@
     };
 
     window.toggleSelectAll = function (scope, checked) {
-      const listId = getListIdByScope(scope);
+      const listId = window.getListIdByScope(scope);
       document.querySelectorAll("#" + listId + " .key-row").forEach(function (row) {
         if (row.style.display === "none") return;
         const cb = row.querySelector("input[type='checkbox']");
@@ -1015,20 +1065,20 @@
 
     window.deleteSelectedKeys = async function (scope) {
       clearInlineFeedbacks();
-      const fbId = getFeedbackIdByScope(scope);
+      const fbId = window.getFeedbackIdByScope(scope);
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.", fbId);
-      const listId = getListIdByScope(scope);
+      const listId = window.getListIdByScope(scope);
       const checkedBoxes = Array.from(document.querySelectorAll("#" + listId + " input.key-cb-" + scope + ":checked"));
       if (checkedBoxes.length === 0) return showErr("Hãy tích chọn ít nhất 1 key để xóa.", fbId);
       if (!confirm("Xóa " + checkedBoxes.length + " key đã chọn khỏi kho?")) return;
       try {
         for (const cb of checkedBoxes) await deleteDoc(doc(db, "keys", cb.value));
         showMsg("Đã xóa " + checkedBoxes.length + " key khỏi kho.", fbId);
-        await Promise.all([loadProducts(), loadBulkStock(), loadCtvStock()]);
+        await Promise.all([window.loadProducts(), window.loadBulkStock(), window.loadCtvStock()]);
       } catch (e) { showErr("Lỗi xóa hàng loạt: " + e.message, fbId); }
     };
 
-    async function loadBulkStock() {
+    window.loadBulkStock = async function () {
       const validDocs = await fetchAndCleanUnsoldKeysByProduct(BULK_PRODUCT_ID);
       const count = validDocs.length;
       const badge = document.getElementById("bulkStockBadge");
@@ -1037,11 +1087,11 @@
         const adminCountText = document.getElementById("adminBulkStockText");
         const adminListEl = document.getElementById("adminBulkKeysList");
         if (adminCountText) adminCountText.textContent = count + " key";
-        if (adminListEl) { adminListEl.innerHTML = validDocs.length === 0 ? "<div style='color:#94a3b8; font-size:13px;'>Kho tùy chọn trống.</div>" : buildKeyRowsHtml(validDocs, "bulk"); filterAdminKeys("bulk"); }
+        if (adminListEl) { adminListEl.innerHTML = validDocs.length === 0 ? "<div style='color:#94a3b8; font-size:13px;'>Kho tùy chọn trống.</div>" : window.buildKeyRowsHtml(validDocs, "bulk"); window.filterAdminKeys("bulk"); }
       }
-    }
+    };
 
-    async function loadCtvStock() {
+    window.loadCtvStock = async function () {
       const validDocs = await fetchAndCleanUnsoldKeysByProduct(CTV_PRODUCT_ID);
       const count = validDocs.length;
       const badge = document.getElementById("ctvStockBadge");
@@ -1050,50 +1100,92 @@
         const adminCountText = document.getElementById("adminCtvStockText");
         const adminListEl = document.getElementById("adminCtvKeysList");
         if (adminCountText) adminCountText.textContent = count + " key";
-        if (adminListEl) { adminListEl.innerHTML = validDocs.length === 0 ? "<div style='color:#94a3b8; font-size:13px;'>Kho CTV trống.</div>" : buildKeyRowsHtml(validDocs, "ctv"); filterAdminKeys("ctv"); }
+        if (adminListEl) { adminListEl.innerHTML = validDocs.length === 0 ? "<div style='color:#94a3b8; font-size:13px;'>Kho CTV trống.</div>" : window.buildKeyRowsHtml(validDocs, "ctv"); window.filterAdminKeys("ctv"); }
       }
-    }
+    };
   </script>
   <script type="module">
-    async function loadProducts() {
+    import {
+      doc, updateDoc, addDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const core = window.__htheanhCore;
+    const {
+      db, BULK_PRODUCT_ID, BULK_MIN_QTY, BULK_UNIT_PRICE,
+      CTV_PRODUCT_ID, CTV_UNIT_PRICE,
+      isAdmin, canBuyCtv, getCleanUsername, clearInlineFeedbacks,
+      showMsg, showErr, getTimestampMs, formatPurchaseTime,
+      normalizeKeysLines, countKeysInText, logBalanceChange,
+      fetchAndCleanUnsoldKeysByProduct, renderProfileAndStats, updateSelectedPkgSummary
+    } = core;
+
+    function isExpiredKeyDoc(kData) {
+      const createdMs = getTimestampMs(kData && kData.createdAt);
+      return createdMs ? ((Date.now() - createdMs) >= (30 * 24 * 60 * 60 * 1000)) : false;
+    }
+
+    window.loadProducts = async function () {
       const gridEl = document.getElementById("pkgGridContainer");
       const selectEl = document.getElementById("keyProdSelect");
       const prevSelectedSelect = selectEl.value;
-      const [prodSnap, unsoldSnap] = await Promise.all([getDocs(collection(db, "products")), getDocs(query(collection(db, "keys"), where("sold", "==", false)))]);
+      const [prodSnap, unsoldSnap] = await Promise.all([
+        getDocs(collection(db, "products")),
+        getDocs(query(collection(db, "keys"), where("sold", "==", false)))
+      ]);
 
       const countByProduct = {};
       for (const kDoc of unsoldSnap.docs) {
         const kData = kDoc.data();
-        if (isExpiredKey(kData)) { try { await deleteDoc(doc(db, "keys", kDoc.id)); } catch (e) {} continue; }
+        if (isExpiredKeyDoc(kData)) {
+          try { await deleteDoc(doc(db, "keys", kDoc.id)); } catch (e) {}
+          continue;
+        }
         const pid = kData.productId || "";
         countByProduct[pid] = (countByProduct[pid] || 0) + 1;
       }
 
-      productsCache = [];
+      const nextCache = [];
       if (prodSnap.empty) {
+        core.setProductsCache(nextCache);
         gridEl.innerHTML = "<div style='grid-column:1/-1; color:#94a3b8; font-size:13px;'>Chưa có gói key nào.</div>";
         selectEl.innerHTML = "<option value=''>-- Chưa có gói --</option>";
-        updateSelectedPkgSummary(); return;
+        updateSelectedPkgSummary();
+        return;
       }
 
       prodSnap.forEach(function (d) {
         const p = d.data();
-        productsCache.push({ id: d.id, name: String(p.name || "Gói Key"), price: Number(p.price || 0), stock: countByProduct[d.id] || 0 });
+        nextCache.push({
+          id: d.id,
+          name: String(p.name || "Gói Key"),
+          price: Number(p.price || 0),
+          stock: countByProduct[d.id] || 0
+        });
       });
-      productsCache.sort(function (a, b) { return a.price - b.price; });
-      if (!selectedProductId || !productsCache.some(function (x) { return x.id === selectedProductId; })) selectedProductId = productsCache[0].id;
+      nextCache.sort(function (a, b) { return a.price - b.price; });
+      core.setProductsCache(nextCache);
 
-      let gridHtml = "", opts = "";
-      for (const item of productsCache) {
-        const isSel = item.id === selectedProductId ? "selected" : "";
+      let selectedId = core.getSelectedProductId();
+      if (!selectedId || !nextCache.some(function (x) { return x.id === selectedId; })) {
+        selectedId = nextCache[0].id;
+        core.setSelectedProductId(selectedId);
+      }
+
+      let gridHtml = "";
+      let opts = "";
+      for (const item of nextCache) {
+        const isSel = item.id === selectedId ? "selected" : "";
         gridHtml += `<div class="pkg-tile ${isSel}" data-id="${item.id}" onclick="selectProductTile('${item.id}')"><div class="pkg-tile-name">${item.name}</div><div class="pkg-tile-price">${item.price.toLocaleString("vi-VN")}đ</div><div class="pkg-tile-stock">Còn ${item.stock}</div></div>`;
         opts += `<option value="${item.id}">${item.name} (${item.price.toLocaleString("vi-VN")}đ)</option>`;
       }
-      gridEl.innerHTML = gridHtml; selectEl.innerHTML = opts;
-      if (prevSelectedSelect && Array.from(selectEl.options).some(function (o) { return o.value === prevSelectedSelect; })) selectEl.value = prevSelectedSelect;
+      gridEl.innerHTML = gridHtml;
+      selectEl.innerHTML = opts;
+      if (prevSelectedSelect && Array.from(selectEl.options).some(function (o) { return o.value === prevSelectedSelect; })) {
+        selectEl.value = prevSelectedSelect;
+      }
       updateSelectedPkgSummary();
-      if (isAdmin()) await loadAdminKeys();
-    }
+      if (isAdmin()) await window.loadAdminKeys();
+    };
 
     window.loadAdminKeys = async function () {
       if (!isAdmin()) return;
@@ -1101,15 +1193,17 @@
       const productId = document.getElementById("keyProdSelect").value;
       if (!productId) { listEl.innerHTML = "Chưa chọn gói."; return; }
       const validDocs = await fetchAndCleanUnsoldKeysByProduct(productId);
-      listEl.innerHTML = validDocs.length === 0 ? "<div style='color:#94a3b8; font-size:13px;'>Gói này chưa có key chưa bán.</div>" : buildKeyRowsHtml(validDocs, "pkg");
-      filterAdminKeys("pkg");
+      listEl.innerHTML = validDocs.length === 0
+        ? "<div style='color:#94a3b8; font-size:13px;'>Gói này chưa có key chưa bán.</div>"
+        : window.buildKeyRowsHtml(validDocs, "pkg");
+      window.filterAdminKeys("pkg");
     };
 
     window.deleteCurrentSelectedProduct = async function () {
       clearInlineFeedbacks();
       if (!isAdmin()) return showErr("Chỉ admin mới được xóa gói.", "adminImportFeedback");
       const productId = document.getElementById("keyProdSelect").value;
-      const prod = productsCache.find(function (p) { return p.id === productId; });
+      const prod = core.getProductsCache().find(function (p) { return p.id === productId; });
       if (!productId) return showErr("Chưa chọn gói.", "adminImportFeedback");
       if (!confirm("Xóa gói \"" + (prod ? prod.name : productId) + "\" và toàn bộ key chưa bán?")) return;
       try {
@@ -1117,74 +1211,102 @@
         for (const kDoc of keysSnap.docs) await deleteDoc(doc(db, "keys", kDoc.id));
         await deleteDoc(doc(db, "products", productId));
         showMsg("Đã xóa gói thành công.", "adminImportFeedback");
-        await loadProducts();
+        await window.loadProducts();
       } catch (e) { showErr("Lỗi xóa gói: " + e.message, "adminImportFeedback"); }
     };
 
     window.deleteKey = async function (keyDocId, keyCode, scope) {
       clearInlineFeedbacks();
-      const fbId = getFeedbackIdByScope(scope);
+      const fbId = window.getFeedbackIdByScope(scope);
       if (!isAdmin()) return showErr("Chỉ admin mới được xóa key.", fbId);
       if (!confirm("Xóa key \"" + (keyCode || keyDocId) + "\"?")) return;
       try {
         await deleteDoc(doc(db, "keys", keyDocId));
         showMsg("Đã xóa key.", fbId);
-        await Promise.all([loadProducts(), loadBulkStock(), loadCtvStock()]);
+        await Promise.all([window.loadProducts(), window.loadBulkStock(), window.loadCtvStock()]);
       } catch (e) { showErr("Lỗi xóa key: " + e.message, fbId); }
     };
-
     window.importBulkKeys = async function () {
       clearInlineFeedbacks();
       if (!isAdmin()) return showErr("Chỉ admin mới được nhập key.", "adminBulkFeedback");
-      const lines = document.getElementById("bulkKeysTextarea").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+      const raw = normalizeKeysLines(document.getElementById("bulkKeysTextarea").value);
+      const lines = raw ? raw.split("\n") : [];
       if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key.", "adminBulkFeedback");
       try {
-        for (const k of lines) await addDoc(collection(db, "keys"), { productId: BULK_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
+        for (const k of lines) {
+          await addDoc(collection(db, "keys"), { productId: BULK_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
+        }
         document.getElementById("bulkKeysTextarea").value = "";
         showMsg("Đã nhập " + lines.length + " key vào kho Tùy chọn!", "adminBulkFeedback");
-        await loadBulkStock();
+        await window.loadBulkStock();
       } catch (e) { showErr("Lỗi nhập key: " + e.message, "adminBulkFeedback"); }
     };
 
     window.importCtvKeys = async function () {
       clearInlineFeedbacks();
       if (!isAdmin()) return showErr("Chỉ admin mới được nhập key CTV.", "adminCtvStockFeedback");
-      const lines = document.getElementById("ctvKeysTextarea").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+      const raw = normalizeKeysLines(document.getElementById("ctvKeysTextarea").value);
+      const lines = raw ? raw.split("\n") : [];
       if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key CTV.", "adminCtvStockFeedback");
       try {
-        for (const k of lines) await addDoc(collection(db, "keys"), { productId: CTV_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
+        for (const k of lines) {
+          await addDoc(collection(db, "keys"), { productId: CTV_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
+        }
         document.getElementById("ctvKeysTextarea").value = "";
         showMsg("Đã nhập " + lines.length + " key vào kho CTV (330đ/key)!", "adminCtvStockFeedback");
-        await loadCtvStock();
+        await window.loadCtvStock();
       } catch (e) { showErr("Lỗi nhập key CTV: " + e.message, "adminCtvStockFeedback"); }
     };
 
     window.buyCtvKeys = async function () {
       clearInlineFeedbacks();
       const errId = "ctvBuyFeedback";
-      if (!currentUser) return showErr("Vui lòng đăng nhập.", errId);
+      const curUser = core.getCurrentUser();
+      const curBal = core.getCurrentBalance();
+      if (!curUser) return showErr("Vui lòng đăng nhập.", errId);
       if (!canBuyCtv()) return showErr("Gói Key CTV (330đ/key) chỉ dành cho CTV!", errId);
       const qty = Number(document.getElementById("ctvQtyInput").value);
       if (!Number.isInteger(qty) || qty < 1) return showErr("Vui lòng nhập số lượng key nguyên từ 1 trở lên.", errId);
       const totalPrice = qty * CTV_UNIT_PRICE;
-      if (currentBalance < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
+      if (curBal < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
 
       try {
         const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(CTV_PRODUCT_ID);
-        if (validStockDocs.length < qty) { await loadCtvStock(); return showErr("Kho CTV chỉ còn " + validStockDocs.length + " key.", errId); }
+        if (validStockDocs.length < qty) {
+          await window.loadCtvStock();
+          return showErr("Kho CTV chỉ còn " + validStockDocs.length + " key.", errId);
+        }
         const boughtKeys = [];
         for (const keyDoc of validStockDocs.slice(0, qty)) {
           boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), { sold: true, buyerId: currentUser.uid, buyerEmail: currentUser.email, soldAt: serverTimestamp() });
+          await updateDoc(doc(db, "keys", keyDoc.id), {
+            sold: true,
+            buyerId: curUser.uid,
+            buyerEmail: curUser.email,
+            soldAt: serverTimestamp()
+          });
         }
-        const newBalance = currentBalance - totalPrice;
-        await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
-        const productTitle = "Gói CTV " + qty + " key (330đ/key)", joinedKeys = boughtKeys.filter(Boolean).join("\n"), nowText = new Date().toLocaleString("vi-VN");
-        await addDoc(collection(db, "orders"), { userId: currentUser.uid, buyerEmail: currentUser.email, productId: CTV_PRODUCT_ID, productName: productTitle, price: totalPrice, keyCode: joinedKeys, purchasedAtText: nowText, createdAt: serverTimestamp() });
-        await logBalanceChange(currentUser.uid, currentUser.email, -totalPrice, newBalance, "Mua " + productTitle);
-        currentBalance = newBalance; document.getElementById("ctvQtyInput").value = ""; updateCtvCalc();
+        const newBalance = curBal - totalPrice;
+        await updateDoc(doc(db, "users", curUser.uid), { balance: newBalance });
+        const productTitle = "Gói CTV " + qty + " key (330đ/key)";
+        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
+        const nowText = new Date().toLocaleString("vi-VN");
+        await addDoc(collection(db, "orders"), {
+          userId: curUser.uid,
+          buyerEmail: curUser.email,
+          productId: CTV_PRODUCT_ID,
+          productName: productTitle,
+          price: totalPrice,
+          keyCode: joinedKeys,
+          purchasedAtText: nowText,
+          createdAt: serverTimestamp()
+        });
+        await logBalanceChange(curUser.uid, curUser.email, -totalPrice, newBalance, "Mua " + productTitle);
+        core.setCurrentBalance(newBalance);
+        document.getElementById("ctvQtyInput").value = "";
+        window.updateCtvCalc();
         showMsg("Mua thành công " + qty + " key CTV (" + totalPrice.toLocaleString("vi-VN") + "đ)!", errId);
-        await Promise.all([loadCtvStock(), loadOrders(), loadBalanceHistory(), loadLeaderboard()]);
+        await Promise.all([window.loadCtvStock(), window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard()]);
         openKeyModal(productTitle, joinedKeys, nowText);
       } catch (e) { showErr("Lỗi khi mua key CTV: " + e.message, errId); }
     };
@@ -1192,28 +1314,53 @@
     window.buyBulkKeys = async function () {
       clearInlineFeedbacks();
       const errId = "bulkFeedback";
-      if (!currentUser) return showErr("Vui lòng đăng nhập.", errId);
+      const curUser = core.getCurrentUser();
+      const curBal = core.getCurrentBalance();
+      if (!curUser) return showErr("Vui lòng đăng nhập.", errId);
       const qty = Number(document.getElementById("bulkQtyInput").value);
-      if (!Number.isInteger(qty) || qty < BULK_MIN_QTY) return showErr("Vui lòng nhập số lượng nguyên từ " + BULK_MIN_QTY + " key trở lên.", errId);
+      if (!Number.isInteger(qty) || qty < BULK_MIN_QTY) {
+        return showErr("Vui lòng nhập số lượng nguyên từ " + BULK_MIN_QTY + " key trở lên.", errId);
+      }
       const totalPrice = qty * BULK_UNIT_PRICE;
-      if (currentBalance < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
+      if (curBal < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
 
       try {
         const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(BULK_PRODUCT_ID);
-        if (validStockDocs.length < qty) { await loadBulkStock(); return showErr("Kho tùy chọn chỉ còn " + validStockDocs.length + " key.", errId); }
+        if (validStockDocs.length < qty) {
+          await window.loadBulkStock();
+          return showErr("Kho tùy chọn chỉ còn " + validStockDocs.length + " key.", errId);
+        }
         const boughtKeys = [];
         for (const keyDoc of validStockDocs.slice(0, qty)) {
           boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), { sold: true, buyerId: currentUser.uid, buyerEmail: currentUser.email, soldAt: serverTimestamp() });
+          await updateDoc(doc(db, "keys", keyDoc.id), {
+            sold: true,
+            buyerId: curUser.uid,
+            buyerEmail: curUser.email,
+            soldAt: serverTimestamp()
+          });
         }
-        const newBalance = currentBalance - totalPrice;
-        await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
-        const productTitle = "Gói tùy chọn " + qty + " key (400đ/key)", joinedKeys = boughtKeys.filter(Boolean).join("\n"), nowText = new Date().toLocaleString("vi-VN");
-        await addDoc(collection(db, "orders"), { userId: currentUser.uid, buyerEmail: currentUser.email, productId: BULK_PRODUCT_ID, productName: productTitle, price: totalPrice, keyCode: joinedKeys, purchasedAtText: nowText, createdAt: serverTimestamp() });
-        await logBalanceChange(currentUser.uid, currentUser.email, -totalPrice, newBalance, "Mua " + productTitle);
-        currentBalance = newBalance; document.getElementById("bulkQtyInput").value = ""; updateBulkCalc();
+        const newBalance = curBal - totalPrice;
+        await updateDoc(doc(db, "users", curUser.uid), { balance: newBalance });
+        const productTitle = "Gói tùy chọn " + qty + " key (400đ/key)";
+        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
+        const nowText = new Date().toLocaleString("vi-VN");
+        await addDoc(collection(db, "orders"), {
+          userId: curUser.uid,
+          buyerEmail: curUser.email,
+          productId: BULK_PRODUCT_ID,
+          productName: productTitle,
+          price: totalPrice,
+          keyCode: joinedKeys,
+          purchasedAtText: nowText,
+          createdAt: serverTimestamp()
+        });
+        await logBalanceChange(curUser.uid, curUser.email, -totalPrice, newBalance, "Mua " + productTitle);
+        core.setCurrentBalance(newBalance);
+        document.getElementById("bulkQtyInput").value = "";
+        window.updateBulkCalc();
         showMsg("Mua thành công " + qty + " key (" + totalPrice.toLocaleString("vi-VN") + "đ)!", errId);
-        await Promise.all([loadBulkStock(), loadOrders(), loadBalanceHistory(), loadLeaderboard()]);
+        await Promise.all([window.loadBulkStock(), window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard()]);
         openKeyModal(productTitle, joinedKeys, nowText);
       } catch (e) { showErr("Lỗi khi mua: " + e.message, errId); }
     };
@@ -1221,64 +1368,113 @@
     window.buySelectedProduct = async function () {
       clearInlineFeedbacks();
       const errId = "buyPkgFeedback";
-      if (!currentUser) return showErr("Vui lòng đăng nhập.", errId);
-      const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
+      const curUser = core.getCurrentUser();
+      const curBal = core.getCurrentBalance();
+      if (!curUser) return showErr("Vui lòng đăng nhập.", errId);
+      const prod = core.getProductsCache().find(function (p) { return p.id === core.getSelectedProductId(); });
       if (!prod) return showErr("Vui lòng chọn gói key trước.", errId);
       const qty = Math.floor(Number(document.getElementById("selectedPkgQtyInput").value || 1));
       if (!Number.isFinite(qty) || qty < 1) return showErr("Số lượng mua tối thiểu là 1 key.", errId);
       const totalPrice = prod.price * qty;
-      if (currentBalance < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
+      if (curBal < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
 
       try {
         const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(prod.id);
-        if (validStockDocs.length === 0) { await loadProducts(); return showErr("Gói này đã hết key trong kho!", errId); }
-        if (validStockDocs.length < qty) { await loadProducts(); return showErr("Gói này chỉ còn " + validStockDocs.length + " key trong kho.", errId); }
+        if (validStockDocs.length === 0) {
+          await window.loadProducts();
+          return showErr("Gói này đã hết key trong kho!", errId);
+        }
+        if (validStockDocs.length < qty) {
+          await window.loadProducts();
+          return showErr("Gói này chỉ còn " + validStockDocs.length + " key trong kho.", errId);
+        }
         const boughtKeys = [];
         for (const keyDoc of validStockDocs.slice(0, qty)) {
           boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), { sold: true, buyerId: currentUser.uid, buyerEmail: currentUser.email, soldAt: serverTimestamp() });
+          await updateDoc(doc(db, "keys", keyDoc.id), {
+            sold: true,
+            buyerId: curUser.uid,
+            buyerEmail: curUser.email,
+            soldAt: serverTimestamp()
+          });
         }
-        const newBalance = currentBalance - totalPrice;
-        await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
-        const orderTitle = qty > 1 ? (prod.name + " x" + qty) : prod.name, joinedKeys = boughtKeys.filter(Boolean).join("\n"), nowText = new Date().toLocaleString("vi-VN");
-        await addDoc(collection(db, "orders"), { userId: currentUser.uid, buyerEmail: currentUser.email, productId: prod.id, productName: orderTitle, price: totalPrice, keyCode: joinedKeys, purchasedAtText: nowText, createdAt: serverTimestamp() });
-        await logBalanceChange(currentUser.uid, currentUser.email, -totalPrice, newBalance, "Mua " + orderTitle);
-        currentBalance = newBalance; document.getElementById("selectedPkgQtyInput").value = "1";
+        const newBalance = curBal - totalPrice;
+        await updateDoc(doc(db, "users", curUser.uid), { balance: newBalance });
+        const orderTitle = qty > 1 ? (prod.name + " x" + qty) : prod.name;
+        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
+        const nowText = new Date().toLocaleString("vi-VN");
+        await addDoc(collection(db, "orders"), {
+          userId: curUser.uid,
+          buyerEmail: curUser.email,
+          productId: prod.id,
+          productName: orderTitle,
+          price: totalPrice,
+          keyCode: joinedKeys,
+          purchasedAtText: nowText,
+          createdAt: serverTimestamp()
+        });
+        await logBalanceChange(curUser.uid, curUser.email, -totalPrice, newBalance, "Mua " + orderTitle);
+        core.setCurrentBalance(newBalance);
+        document.getElementById("selectedPkgQtyInput").value = "1";
         showMsg("Mua thành công " + orderTitle + "!", errId);
-        await Promise.all([loadProducts(), loadOrders(), loadBalanceHistory(), loadLeaderboard()]);
+        await Promise.all([window.loadProducts(), window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard()]);
         openKeyModal(orderTitle, joinedKeys, nowText);
       } catch (e) { showErr("Lỗi khi mua key: " + e.message, errId); }
     };
-
-    async function loadOrders() {
+    window.loadOrders = async function () {
       const ordersEl = document.getElementById("ordersList");
-      if (!currentUser) return;
-      const snap = await getDocs(query(collection(db, "orders"), where("userId", "==", currentUser.uid)));
-      let totalSpent = 0, totalKeys = 0;
-      if (snap.empty) { ordersEl.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Bạn chưa mua key nào.</div>"; renderProfileAndStats(0, 0); return; }
+      const curUser = core.getCurrentUser();
+      if (!curUser) return;
+      const snap = await getDocs(query(collection(db, "orders"), where("userId", "==", curUser.uid)));
+      let totalSpent = 0;
+      let totalKeys = 0;
+      if (snap.empty) {
+        ordersEl.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Bạn chưa mua key nào.</div>";
+        renderProfileAndStats(0, 0);
+        return;
+      }
       const orderItems = [];
       snap.forEach(function (d) {
-        const o = d.data(), priceNum = Number(o.price || 0), keyStr = normalizeKeysLines(o.keyCode || "");
-        totalSpent += priceNum; totalKeys += countKeysInText(keyStr);
-        orderItems.push({ sortMs: getTimestampMs(o.createdAt) || 0, productName: o.productName || "Gói Key", price: priceNum, keyStr, timeStr: o.purchasedAtText || formatPurchaseTime(o.createdAt) });
+        const o = d.data();
+        const priceNum = Number(o.price || 0);
+        const keyStr = normalizeKeysLines(o.keyCode || "");
+        totalSpent += priceNum;
+        totalKeys += countKeysInText(keyStr);
+        orderItems.push({
+          sortMs: getTimestampMs(o.createdAt) || 0,
+          productName: o.productName || "Gói Key",
+          price: priceNum,
+          keyStr,
+          timeStr: o.purchasedAtText || formatPurchaseTime(o.createdAt)
+        });
       });
       renderProfileAndStats(totalSpent, totalKeys);
       orderItems.sort(function (a, b) { return b.sortMs - a.sortMs; });
       ordersEl.innerHTML = orderItems.map(function (item) {
         return `<div class="item"><div style="display:flex; justify-content:space-between; gap:8px;"><b>${item.productName}</b><span style="color:#facc15; font-weight:700;">${item.price.toLocaleString("vi-VN")}đ</span></div><div style="font-size:12px; color:#94a3b8; margin-top:4px;">🕒 ${item.timeStr}</div><div class="key-box">${item.keyStr}</div><button class="green" style="width:auto; margin:8px 0 0; padding:6px 12px; font-size:12.5px;" onclick="copyOrderKey('${encodeURIComponent(item.keyStr)}')">📋 Copy Key</button></div>`;
       }).join("");
-    }
+    };
 
-    async function loadBalanceHistory() {
+    window.loadBalanceHistory = async function () {
       const el = document.getElementById("balanceHistoryList");
-      if (!currentUser || !el) return;
+      const curUser = core.getCurrentUser();
+      if (!curUser || !el) return;
       try {
-        const snap = await getDocs(query(collection(db, "balance_logs"), where("userId", "==", currentUser.uid)));
-        if (snap.empty) { el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có biến động số dư nào.</div>"; return; }
+        const snap = await getDocs(query(collection(db, "balance_logs"), where("userId", "==", curUser.uid)));
+        if (snap.empty) {
+          el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có biến động số dư nào.</div>";
+          return;
+        }
         const logs = [];
         snap.forEach(function (d) {
           const x = d.data();
-          logs.push({ sortMs: getTimestampMs(x.createdAt) || 0, amount: Number(x.amount || 0), balanceAfter: Number(x.balanceAfter || 0), note: x.note || "Giao dịch", timeText: x.timeText || formatPurchaseTime(x.createdAt) });
+          logs.push({
+            sortMs: getTimestampMs(x.createdAt) || 0,
+            amount: Number(x.amount || 0),
+            balanceAfter: Number(x.balanceAfter || 0),
+            note: x.note || "Giao dịch",
+            timeText: x.timeText || formatPurchaseTime(x.createdAt)
+          });
         });
         logs.sort(function (a, b) { return b.sortMs - a.sortMs; });
         el.innerHTML = logs.map(function (l) {
@@ -1286,42 +1482,67 @@
           return `<div class="item" style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><div><div style="font-weight:700; font-size:13.5px;">${l.note}</div><div style="font-size:11.5px; color:#94a3b8; margin-top:3px;">🕒 ${l.timeText} • Số dư sau: ${l.balanceAfter.toLocaleString("vi-VN")}đ</div></div><div style="font-weight:800; color:${isPlus ? "#22c55e" : "#fb7185"}; white-space:nowrap;">${isPlus ? "+" : ""}${l.amount.toLocaleString("vi-VN")}đ</div></div>`;
         }).join("");
       } catch (e) { el.innerHTML = "<div style='color:#94a3b8; font-size:13px;'>Không tải được lịch sử biến động.</div>"; }
-    }
+    };
 
-    async function loadLeaderboard() {
+    window.loadLeaderboard = async function () {
       const el = document.getElementById("leaderboardList");
+      const curUser = core.getCurrentUser();
       if (!el) return;
       try {
-        const [ordersSnap, usersSnap] = await Promise.all([getDocs(collection(db, "orders")), getDocs(collection(db, "users"))]);
+        const [ordersSnap, usersSnap] = await Promise.all([
+          getDocs(collection(db, "orders")),
+          getDocs(collection(db, "users"))
+        ]);
         const byUser = {};
         usersSnap.forEach(function (uDoc) {
-          const u = uDoc.data(), email = String(u.email || "").trim(), uname = String(u.username || "").trim();
-          byUser[uDoc.id] = { uid: uDoc.id, label: uname || getCleanUsername("", email) || uDoc.id, spent: 0, keys: 0, balance: Number(u.balance || 0) };
+          const u = uDoc.data();
+          const email = String(u.email || "").trim();
+          const uname = String(u.username || "").trim();
+          byUser[uDoc.id] = {
+            uid: uDoc.id,
+            label: uname || getCleanUsername("", email) || uDoc.id,
+            spent: 0,
+            keys: 0,
+            balance: Number(u.balance || 0)
+          };
         });
         ordersSnap.forEach(function (d) {
-          const o = d.data(), uid = o.userId || "unknown", rawBuyer = String(o.buyerEmail || "").trim();
-          if (!byUser[uid]) byUser[uid] = { uid, label: getCleanUsername(rawBuyer, rawBuyer) || uid, spent: 0, keys: 0, balance: 0 };
-          byUser[uid].spent += Number(o.price || 0); byUser[uid].keys += countKeysInText(o.keyCode || "");
+          const o = d.data();
+          const uid = o.userId || "unknown";
+          const rawBuyer = String(o.buyerEmail || "").trim();
+          if (!byUser[uid]) {
+            byUser[uid] = { uid, label: getCleanUsername(rawBuyer, rawBuyer) || uid, spent: 0, keys: 0, balance: 0 };
+          }
+          byUser[uid].spent += Number(o.price || 0);
+          byUser[uid].keys += countKeysInText(o.keyCode || "");
         });
-        const list = Object.values(byUser).sort(function (a, b) { return b.spent !== a.spent ? (b.spent - a.spent) : (b.balance - a.balance); });
-        if (list.length === 0) { el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có thành viên nào.</div>"; return; }
+        const list = Object.values(byUser).sort(function (a, b) {
+          return b.spent !== a.spent ? (b.spent - a.spent) : (b.balance - a.balance);
+        });
+        if (list.length === 0) {
+          el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có thành viên nào.</div>";
+          return;
+        }
         el.innerHTML = list.map(function (u, idx) {
           const medal = idx === 0 ? "🥇" : (idx === 1 ? "🥈" : (idx === 2 ? "🥉" : "#" + (idx + 1)));
-          const meTag = (currentUser && u.uid === currentUser.uid) ? " <span style='font-size:11px; color:#38bdf8;'>(Bạn)</span>" : "";
+          const meTag = (curUser && u.uid === curUser.uid) ? " <span style='font-size:11px; color:#38bdf8;'>(Bạn)</span>" : "";
           return `<div class="rank-row"><div><span class="rank-buyer">${medal} ${u.label}${meTag}</span><div style="font-size:12px; color:#94a3b8; margin-top:2px;">Đã mua ${u.keys} key • Số dư: <b style="color:#22c55e;">${u.balance.toLocaleString("vi-VN")}đ</b></div></div><div style="text-align:right; white-space:nowrap;"><div style="color:#facc15; font-weight:800;">${u.spent.toLocaleString("vi-VN")}đ</div><div style="font-size:11px; color:#94a3b8;">Tổng mua</div></div></div>`;
         }).join("");
       } catch (e) { el.innerHTML = "<div style='color:#94a3b8; font-size:13px;'>Không tải được bảng xếp hạng: " + e.message + "</div>"; }
-    }
+    };
 
     window.addProduct = async function () {
       clearInlineFeedbacks();
       if (!isAdmin()) return showErr("Chỉ admin mới được thêm gói.", "adminProdFeedback");
-      const name = document.getElementById("prodName").value.trim(), price = Number(document.getElementById("prodPrice").value);
+      const name = document.getElementById("prodName").value.trim();
+      const price = Number(document.getElementById("prodPrice").value);
       if (!name || !price || price <= 0) return showErr("Nhập đủ tên gói và giá hợp lệ.", "adminProdFeedback");
       try {
         await addDoc(collection(db, "products"), { name, price, createdAt: serverTimestamp() });
-        document.getElementById("prodName").value = ""; document.getElementById("prodPrice").value = "";
-        showMsg("Đã thêm gói hàng mới!", "adminProdFeedback"); await loadProducts();
+        document.getElementById("prodName").value = "";
+        document.getElementById("prodPrice").value = "";
+        showMsg("Đã thêm gói hàng mới!", "adminProdFeedback");
+        await window.loadProducts();
       } catch (e) { showErr("Lỗi thêm gói: " + e.message, "adminProdFeedback"); }
     };
 
@@ -1329,13 +1550,17 @@
       clearInlineFeedbacks();
       if (!isAdmin()) return showErr("Chỉ admin mới được nhập key.", "adminImportFeedback");
       const productId = document.getElementById("keyProdSelect").value;
-      const lines = document.getElementById("keysTextarea").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+      const raw = normalizeKeysLines(document.getElementById("keysTextarea").value);
+      const lines = raw ? raw.split("\n") : [];
       if (!productId) return showErr("Hãy chọn gói hàng trước.", "adminImportFeedback");
       if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key.", "adminImportFeedback");
       try {
-        for (const k of lines) await addDoc(collection(db, "keys"), { productId, code: k, sold: false, createdAt: serverTimestamp() });
+        for (const k of lines) {
+          await addDoc(collection(db, "keys"), { productId, code: k, sold: false, createdAt: serverTimestamp() });
+        }
         document.getElementById("keysTextarea").value = "";
-        showMsg("Đã nhập thành công " + lines.length + " key!", "adminImportFeedback"); await loadProducts();
+        showMsg("Đã nhập thành công " + lines.length + " key!", "adminImportFeedback");
+        await window.loadProducts();
       } catch (e) { showErr("Lỗi nhập key: " + e.message, "adminImportFeedback"); }
     };
   </script>
