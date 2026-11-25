@@ -18,12 +18,14 @@
     button.green { background: #16a34a; }
     button.pink { background: #e11d48; }
     button.red { background: #dc2626; }
+    button.amber { background: #d97706; }
     button.dark { background: #1e2433; border: 1px solid #2e364d; color: #e2e8f0; }
 
     .profile-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
     .avatar-circle { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #f43f5e, #fb7185); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: #fff; flex-shrink: 0; }
     .profile-name { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .role-badge { background: rgba(245, 158, 11, 0.16); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+    .ctv-badge { background: rgba(56, 189, 248, 0.16); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
     .profile-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
     .header-btns { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
     .header-btns::-webkit-scrollbar { display: none; }
@@ -69,6 +71,7 @@
     .toolbar button { width: auto; margin: 0; padding: 7px 10px; font-size: 12px; }
 
     .lag-notice { background: #451a03; border: 1px solid #f59e0b; color: #fef3c7; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+    .lag-free-link { display: inline-block; margin-top: 6px; color: #38bdf8; font-weight: 700; font-size: 13px; text-decoration: underline; word-break: break-all; }
     .lag-actions { display: flex; gap: 8px; margin-top: 8px; }
     .lag-actions button { margin: 0; padding: 7px 10px; font-size: 12px; }
 
@@ -78,6 +81,7 @@
     .rank-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid #22283a; font-size: 13.5px; }
     .rank-row:last-child { border-bottom: none; }
     .rank-buyer { font-weight: 700; color: #f8fafc; word-break: break-all; }
+    .ctv-chip { display: inline-flex; align-items: center; gap: 6px; background: #131722; border: 1px solid #2a3146; border-radius: 999px; padding: 4px 10px; margin: 4px 4px 0 0; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -86,6 +90,11 @@
   <div id="lagNoticeBox" class="lag-notice" style="display:none;">
     <div style="font-weight:700; color:#fbbf24; font-size:14px;">⚠️ Thông báo hệ thống</div>
     <div style="font-size:13px; margin-top:3px;">Web hơi lag, khi nào thấy trong kho có key mới mua.</div>
+    <div>
+      <a class="lag-free-link" href="https://zalo.me/g/oz94yupjliwjb42fkrnr" target="_blank" rel="noopener noreferrer">
+        🎁 Free key mỗi ngày: https://zalo.me/g/oz94yupjliwjb42fkrnr
+      </a>
+    </div>
     <div class="lag-actions">
       <button class="dark" onclick="closeLagNotice()">Đóng</button>
       <button onclick="snoozeLagNotice2h()">Đóng 2h</button>
@@ -149,6 +158,7 @@
           <div class="profile-name">
             <span id="profileDisplayName">user</span>
             <span id="profileRoleBadge" class="role-badge">Thành viên</span>
+            <span id="profileCtvBadge" class="ctv-badge" style="display:none;">CTV</span>
           </div>
           <div id="profileEmailSub" class="profile-sub"></div>
         </div>
@@ -222,6 +232,19 @@
         <button class="green" onclick="buyBulkKeys()">Mua tùy chọn</button>
         <div id="bulkFeedback" class="err"></div>
       </div>
+
+      <div class="card" style="border-color:#f59e0b;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <h2 style="margin:0; color:#fbbf24;">⭐ Mua Key CTV (330đ/key)</h2>
+          <span id="ctvStockBadge" style="font-size:12px; background:#451a03; border:1px solid #f59e0b; padding:4px 8px; border-radius:8px; color:#fbbf24;">Kho CTV: 0 key</span>
+        </div>
+        <div style="font-size:12.5px; color:#94a3b8; margin-top:6px;">
+          Chỉ tài khoản CTV mới mua được • Thành tiền: <b id="ctvCalcText" style="color:#fbbf24;">0đ</b>
+        </div>
+        <input id="ctvQtyInput" type="number" min="1" step="1" placeholder="Nhập số lượng key CTV muốn mua..." oninput="updateCtvCalc()" />
+        <button id="buyCtvBtn" class="amber" onclick="buyCtvKeys()">Mua Key CTV (330đ/key)</button>
+        <div id="ctvBuyFeedback" class="err"></div>
+      </div>
     </div>
 
     <div id="tabPanel_keys" style="display:none;">
@@ -258,6 +281,19 @@
       <div class="card">
         <h2>Quản lý Admin</h2>
         <p style="font-size:12.5px; color:#94a3b8; margin-top:0;">Key chưa bán tự động xóa sau 30 ngày kể từ lúc nhập kho.</p>
+
+        <div class="item" style="border-color:#f59e0b;">
+          <h3 style="color:#fbbf24;">Quản lý Cộng Tác Viên (CTV)</h3>
+          <div style="font-size:12px; color:#94a3b8; margin-bottom:4px;">Nhập tên tài khoản, Email hoặc UID để thêm hoặc gỡ CTV:</div>
+          <input id="ctvTargetInput" type="text" placeholder="VD: tenctv hoặc ctv@htheanh.shop" />
+          <div style="display:flex; gap:8px;">
+            <button class="amber" style="margin:0;" onclick="adminSetCtvRole(true)">+ Thêm làm CTV</button>
+            <button class="dark" style="margin:0;" onclick="adminSetCtvRole(false)">Gỡ quyền CTV</button>
+          </div>
+          <div style="font-size:12px; color:#94a3b8; margin-top:10px;">Danh sách CTV hiện tại:</div>
+          <div id="ctvListBox" style="margin-top:4px; font-size:12.5px; color:#cbd5e1;">Đang tải...</div>
+          <div id="adminCtvFeedback" class="err"></div>
+        </div>
 
         <div class="item" style="border-color:#38bdf8;">
           <h3 style="color:#38bdf8;">Quản lý số dư & người dùng</h3>
@@ -312,6 +348,21 @@
           </div>
           <div id="adminBulkFeedback" class="err"></div>
           <div id="adminBulkKeysList"></div>
+        </div>
+
+        <div class="item" style="margin-top:16px; border-color:#f59e0b;">
+          <h3 style="color:#fbbf24;">5. Kho Key CTV (330đ/key — chỉ CTV mua được) — Còn: <span id="adminCtvStockText">0 key</span></h3>
+          <textarea id="ctvKeysTextarea" rows="4" placeholder="KEY-CTV-001&#10;KEY-CTV-002"></textarea>
+          <button class="amber" onclick="importCtvKeys()">Nhập Key vào kho CTV</button>
+          <input id="ctvSearchInput" type="text" placeholder="Tìm key trong kho CTV..." oninput="filterAdminKeys('ctv')" />
+          <div class="toolbar">
+            <button class="dark" onclick="toggleSelectAll('ctv', true)">Chọn hết</button>
+            <button class="dark" onclick="toggleSelectAll('ctv', false)">Bỏ chọn</button>
+            <button class="red" onclick="deleteSelectedKeys('ctv')">Xóa đã chọn</button>
+            <button class="dark" onclick="clearDisplaySection('adminCtvKeysList', 'Đã xóa hiển thị danh sách key kho CTV.')">Xóa hiển thị</button>
+          </div>
+          <div id="adminCtvStockFeedback" class="err"></div>
+          <div id="adminCtvKeysList"></div>
         </div>
       </div>
     </div>
@@ -442,6 +493,8 @@
     const BULK_PRODUCT_ID = "bulk_400";
     const BULK_MIN_QTY = 20;
     const BULK_UNIT_PRICE = 400;
+    const CTV_PRODUCT_ID = "ctv_330";
+    const CTV_UNIT_PRICE = 330;
     const KEY_TTL_DAYS = 30;
     const KEY_TTL_MS = KEY_TTL_DAYS * 24 * 60 * 60 * 1000;
 
@@ -451,12 +504,15 @@
 
     let currentUser = null;
     let currentDisplayName = "";
+    let currentIsCtv = false;
     let currentBalance = 0;
     let currentTotalDeposited = 0;
     let productsCache = [];
     let selectedProductId = "";
 
     function isAdmin() { return Boolean(currentUser && currentUser.email === ADMIN_EMAIL); }
+    function canBuyCtv() { return Boolean(isAdmin() || currentIsCtv); }
+
     window.canOpenAdminTab = function () {
       if (!isAdmin()) { switchTab("buy"); return false; }
       return true;
@@ -574,6 +630,12 @@
       document.getElementById("profileEmailSub").textContent = email.endsWith("@" + INTERNAL_DOMAIN) ? ("Tài khoản: " + displayName) : email;
       document.getElementById("profileRoleBadge").textContent = isAdmin() ? "Quản Trị Viên" : "Thành viên";
 
+      const ctvBadge = document.getElementById("profileCtvBadge");
+      if (ctvBadge) {
+        ctvBadge.style.display = (currentIsCtv || isAdmin()) ? "inline-block" : "none";
+        ctvBadge.textContent = isAdmin() ? "Admin / CTV" : "CTV";
+      }
+
       document.getElementById("statBalance").textContent = currentBalance.toLocaleString("vi-VN") + "đ";
       if (typeof totalSpent === "number") document.getElementById("statTotalSpent").textContent = totalSpent.toLocaleString("vi-VN") + "đ";
       if (typeof totalKeys === "number") document.getElementById("statTotalKeys").textContent = totalKeys.toLocaleString("vi-VN");
@@ -652,6 +714,14 @@
       calcEl.textContent = (qty * BULK_UNIT_PRICE).toLocaleString("vi-VN") + "đ" + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
     };
 
+    window.updateCtvCalc = function () {
+      const qty = Number(document.getElementById("ctvQtyInput").value);
+      const calcEl = document.getElementById("ctvCalcText");
+      document.getElementById("ctvBuyFeedback").style.display = "none";
+      if (!Number.isFinite(qty) || qty <= 0) { calcEl.textContent = "0đ"; return; }
+      calcEl.textContent = (qty * CTV_UNIT_PRICE).toLocaleString("vi-VN") + "đ";
+    };
+
     window.registerUser = async function () {
       clearInlineFeedbacks();
       const rawName = document.getElementById("emailInput").value.trim();
@@ -663,7 +733,7 @@
       try {
         const cred = await createUserWithEmailAndPassword(auth, authEmail, pass);
         await setDoc(doc(db, "users", cred.user.uid), {
-          username: displayName, email: authEmail, balance: 0, totalDeposited: 0, createdAt: serverTimestamp()
+          username: displayName, email: authEmail, isCtv: false, balance: 0, totalDeposited: 0, createdAt: serverTimestamp()
         });
         showMsg("Đăng ký thành công tài khoản \"" + displayName + "\"!", "authFeedback");
       } catch (e) { showErr("Lỗi đăng ký: " + e.message, "authFeedback"); }
@@ -737,20 +807,119 @@
         const snap = await getDoc(userRef);
         const fallbackName = getCleanUsername("", user.email);
         if (!snap.exists()) {
-          await setDoc(userRef, { username: fallbackName, email: user.email, balance: 0, totalDeposited: 0 });
+          await setDoc(userRef, { username: fallbackName, email: user.email, isCtv: false, balance: 0, totalDeposited: 0 });
           currentDisplayName = fallbackName;
+          currentIsCtv = false;
           currentBalance = 0; currentTotalDeposited = 0;
         } else {
           const uData = snap.data();
           currentDisplayName = String(uData.username || fallbackName).trim() || fallbackName;
+          currentIsCtv = Boolean(uData.isCtv);
           currentBalance = Number(uData.balance || 0);
           currentTotalDeposited = Number(uData.totalDeposited || 0);
         }
 
         renderProfileAndStats();
-        await Promise.all([loadProducts(), loadBulkStock(), loadOrders(), loadBalanceHistory(), loadLeaderboard()]);
+        await Promise.all([loadProducts(), loadBulkStock(), loadCtvStock(), loadOrders(), loadBalanceHistory(), loadLeaderboard(), loadCtvList()]);
       } catch (e) { showErr("Lỗi tải dữ liệu: " + e.message, "globalErrBox"); }
     });
+    async function findUserDocByInput(rawTarget) {
+      const usersSnap = await getDocs(collection(db, "users"));
+      const cleanInput = String(rawTarget || "").trim().toLowerCase();
+      const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
+
+      for (const uDoc of usersSnap.docs) {
+        const uData = uDoc.data();
+        const uEmail = String(uData.email || "").toLowerCase();
+        const uName = String(uData.username || "").toLowerCase();
+        if (
+          uEmail === cleanInput ||
+          (mappedEmail && uEmail === mappedEmail) ||
+          uName === cleanInput ||
+          uDoc.id.toLowerCase() === cleanInput
+        ) {
+          return uDoc;
+        }
+      }
+      return null;
+    }
+
+    async function loadCtvList() {
+      const box = document.getElementById("ctvListBox");
+      if (!box) return;
+      try {
+        const snap = await getDocs(query(collection(db, "users"), where("isCtv", "==", true)));
+        if (snap.empty) {
+          box.innerHTML = "<span style='color:#94a3b8;'>Chưa có CTV nào.</span>";
+          return;
+        }
+        let html = "";
+        snap.forEach(function (uDoc) {
+          const u = uDoc.data();
+          const label = String(u.username || u.email || uDoc.id).trim();
+          html += `
+            <span class="ctv-chip">
+              <span>⭐ ${label}</span>
+              <button class="red" style="width:auto; margin:0; padding:2px 7px; font-size:11px; border-radius:999px;" onclick="quickRemoveCtv('${uDoc.id}', '${label.replace(/'/g, "")}')">Gỡ</button>
+            </span>
+          `;
+        });
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = "<span style='color:#94a3b8;'>Không tải được danh sách CTV.</span>";
+      }
+    }
+
+    window.quickRemoveCtv = async function (uid, label) {
+      if (!isAdmin()) return;
+      if (!confirm("Gỡ quyền CTV của \"" + label + "\"?")) return;
+      try {
+        await updateDoc(doc(db, "users", uid), { isCtv: false });
+        if (currentUser && currentUser.uid === uid) {
+          currentIsCtv = false;
+          renderProfileAndStats();
+        }
+        await loadCtvList();
+        showMsg("Đã gỡ quyền CTV của \"" + label + "\".", "adminCtvFeedback");
+      } catch (e) {
+        showErr("Lỗi gỡ CTV: " + e.message, "adminCtvFeedback");
+      }
+    };
+
+    window.adminSetCtvRole = async function (makeCtv) {
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền quản lý CTV.", "adminCtvFeedback");
+
+      const rawTarget = document.getElementById("ctvTargetInput").value.trim();
+      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần thêm/gỡ CTV.", "adminCtvFeedback");
+
+      try {
+        const targetDoc = await findUserDocByInput(rawTarget);
+        if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminCtvFeedback");
+
+        const uData = targetDoc.data();
+        const label = String(uData.username || uData.email || targetDoc.id).trim();
+
+        await updateDoc(doc(db, "users", targetDoc.id), { isCtv: Boolean(makeCtv) });
+
+        if (currentUser && targetDoc.id === currentUser.uid) {
+          currentIsCtv = Boolean(makeCtv);
+          renderProfileAndStats();
+        }
+
+        document.getElementById("ctvTargetInput").value = "";
+        await loadCtvList();
+        showMsg(
+          makeCtv
+            ? ("Đã thêm \"" + label + "\" làm CTV! Giờ có thể mua Key CTV 330đ/key.")
+            : ("Đã gỡ quyền CTV của \"" + label + "\"."),
+          "adminCtvFeedback"
+        );
+      } catch (e) {
+        showErr("Lỗi cập nhật CTV: " + e.message, "adminCtvFeedback");
+      }
+    };
+
     window.adminAddBalance = async function () {
       clearInlineFeedbacks();
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền cộng số dư.", "adminBalFeedback");
@@ -761,25 +930,7 @@
       if (!Number.isFinite(amount) || amount === 0) return showErr("Nhập số tiền hợp lệ (khác 0).", "adminBalFeedback");
 
       try {
-        const usersSnap = await getDocs(collection(db, "users"));
-        let targetDoc = null;
-        const cleanInput = rawTarget.toLowerCase();
-        const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
-
-        for (const uDoc of usersSnap.docs) {
-          const uData = uDoc.data();
-          const uEmail = String(uData.email || "").toLowerCase();
-          const uName = String(uData.username || "").toLowerCase();
-          if (
-            uEmail === cleanInput ||
-            (mappedEmail && uEmail === mappedEmail) ||
-            uName === cleanInput ||
-            uDoc.id.toLowerCase() === cleanInput
-          ) {
-            targetDoc = uDoc; break;
-          }
-        }
-
+        const targetDoc = await findUserDocByInput(rawTarget);
         if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminBalFeedback");
 
         const uData = targetDoc.data();
@@ -815,25 +966,7 @@
       if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần xóa số dư.", "adminBalFeedback");
 
       try {
-        const usersSnap = await getDocs(collection(db, "users"));
-        let targetDoc = null;
-        const cleanInput = rawTarget.toLowerCase();
-        const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
-
-        for (const uDoc of usersSnap.docs) {
-          const uData = uDoc.data();
-          const uEmail = String(uData.email || "").toLowerCase();
-          const uName = String(uData.username || "").toLowerCase();
-          if (
-            uEmail === cleanInput ||
-            (mappedEmail && uEmail === mappedEmail) ||
-            uName === cleanInput ||
-            uDoc.id.toLowerCase() === cleanInput
-          ) {
-            targetDoc = uDoc; break;
-          }
-        }
-
+        const targetDoc = await findUserDocByInput(rawTarget);
         if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminBalFeedback");
 
         const uData = targetDoc.data();
@@ -871,25 +1004,7 @@
       if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người dùng cần xóa.", "adminBalFeedback");
 
       try {
-        const usersSnap = await getDocs(collection(db, "users"));
-        let targetDoc = null;
-        const cleanInput = rawTarget.toLowerCase();
-        const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
-
-        for (const uDoc of usersSnap.docs) {
-          const uData = uDoc.data();
-          const uEmail = String(uData.email || "").toLowerCase();
-          const uName = String(uData.username || "").toLowerCase();
-          if (
-            uEmail === cleanInput ||
-            (mappedEmail && uEmail === mappedEmail) ||
-            uName === cleanInput ||
-            uDoc.id.toLowerCase() === cleanInput
-          ) {
-            targetDoc = uDoc; break;
-          }
-        }
-
+        const targetDoc = await findUserDocByInput(rawTarget);
         if (!targetDoc) return showErr("Không tìm thấy người dùng khớp với \"" + rawTarget + "\".", "adminBalFeedback");
         if (currentUser && targetDoc.id === currentUser.uid) {
           return showErr("Không thể tự xóa tài khoản admin đang đăng nhập.", "adminBalFeedback");
@@ -914,7 +1029,7 @@
 
         await deleteDoc(doc(db, "users", targetDoc.id));
         document.getElementById("targetUserInput").value = "";
-        await loadLeaderboard();
+        await Promise.all([loadLeaderboard(), loadCtvList()]);
         showMsg("Đã xóa người dùng \"" + targetLabel + "\" thành công!", "adminBalFeedback");
       } catch (e) { showErr("Lỗi xóa người dùng: " + e.message, "adminBalFeedback"); }
     };
@@ -941,9 +1056,27 @@
       return html;
     }
 
+    function getListIdByScope(scope) {
+      if (scope === "bulk") return "adminBulkKeysList";
+      if (scope === "ctv") return "adminCtvKeysList";
+      return "adminKeysList";
+    }
+
+    function getInputIdByScope(scope) {
+      if (scope === "bulk") return "bulkSearchInput";
+      if (scope === "ctv") return "ctvSearchInput";
+      return "pkgSearchInput";
+    }
+
+    function getFeedbackIdByScope(scope) {
+      if (scope === "bulk") return "adminBulkFeedback";
+      if (scope === "ctv") return "adminCtvStockFeedback";
+      return "adminPkgKeysFeedback";
+    }
+
     window.filterAdminKeys = function (scope) {
-      const inputEl = document.getElementById(scope === "bulk" ? "bulkSearchInput" : "pkgSearchInput");
-      const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
+      const inputEl = document.getElementById(getInputIdByScope(scope));
+      const listId = getListIdByScope(scope);
       const kw = (inputEl ? inputEl.value : "").trim().toLowerCase();
       document.querySelectorAll("#" + listId + " .key-row").forEach(function (row) {
         const code = row.getAttribute("data-code") || "";
@@ -952,7 +1085,7 @@
     };
 
     window.toggleSelectAll = function (scope, checked) {
-      const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
+      const listId = getListIdByScope(scope);
       document.querySelectorAll("#" + listId + " .key-row").forEach(function (row) {
         if (row.style.display === "none") return;
         const cb = row.querySelector("input[type='checkbox']");
@@ -962,9 +1095,9 @@
 
     window.deleteSelectedKeys = async function (scope) {
       clearInlineFeedbacks();
-      const fbId = scope === "bulk" ? "adminBulkFeedback" : "adminPkgKeysFeedback";
+      const fbId = getFeedbackIdByScope(scope);
       if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.", fbId);
-      const listId = scope === "bulk" ? "adminBulkKeysList" : "adminKeysList";
+      const listId = getListIdByScope(scope);
       const checkedBoxes = Array.from(document.querySelectorAll("#" + listId + " input.key-cb-" + scope + ":checked"));
       if (checkedBoxes.length === 0) return showErr("Hãy tích chọn ít nhất 1 key để xóa.", fbId);
       if (!confirm("Xóa " + checkedBoxes.length + " key đã chọn khỏi kho?")) return;
@@ -972,7 +1105,7 @@
       try {
         for (const cb of checkedBoxes) await deleteDoc(doc(db, "keys", cb.value));
         showMsg("Đã xóa " + checkedBoxes.length + " key khỏi kho.", fbId);
-        await Promise.all([loadProducts(), loadBulkStock()]);
+        await Promise.all([loadProducts(), loadBulkStock(), loadCtvStock()]);
       } catch (e) { showErr("Lỗi xóa hàng loạt: " + e.message, fbId); }
     };
 
@@ -991,6 +1124,25 @@
             ? "<div style='color:#94a3b8; font-size:13px;'>Kho tùy chọn trống.</div>"
             : buildKeyRowsHtml(validDocs, "bulk");
           filterAdminKeys("bulk");
+        }
+      }
+    }
+
+    async function loadCtvStock() {
+      const validDocs = await fetchAndCleanUnsoldKeysByProduct(CTV_PRODUCT_ID);
+      const count = validDocs.length;
+      const badge = document.getElementById("ctvStockBadge");
+      if (badge) badge.textContent = "Kho CTV: " + count + " key";
+
+      if (isAdmin()) {
+        const adminCountText = document.getElementById("adminCtvStockText");
+        const adminListEl = document.getElementById("adminCtvKeysList");
+        if (adminCountText) adminCountText.textContent = count + " key";
+        if (adminListEl) {
+          adminListEl.innerHTML = validDocs.length === 0
+            ? "<div style='color:#94a3b8; font-size:13px;'>Kho CTV trống.</div>"
+            : buildKeyRowsHtml(validDocs, "ctv");
+          filterAdminKeys("ctv");
         }
       }
     }
@@ -1088,13 +1240,13 @@
 
     window.deleteKey = async function (keyDocId, keyCode, scope) {
       clearInlineFeedbacks();
-      const fbId = scope === "bulk" ? "adminBulkFeedback" : "adminPkgKeysFeedback";
+      const fbId = getFeedbackIdByScope(scope);
       if (!isAdmin()) return showErr("Chỉ admin mới được xóa key.", fbId);
       if (!confirm("Xóa key \"" + (keyCode || keyDocId) + "\"?")) return;
       try {
         await deleteDoc(doc(db, "keys", keyDocId));
         showMsg("Đã xóa key.", fbId);
-        await Promise.all([loadProducts(), loadBulkStock()]);
+        await Promise.all([loadProducts(), loadBulkStock(), loadCtvStock()]);
       } catch (e) { showErr("Lỗi xóa key: " + e.message, fbId); }
     };
 
@@ -1112,6 +1264,76 @@
         showMsg("Đã nhập " + lines.length + " key vào kho Tùy chọn!", "adminBulkFeedback");
         await loadBulkStock();
       } catch (e) { showErr("Lỗi nhập key: " + e.message, "adminBulkFeedback"); }
+    };
+
+    window.importCtvKeys = async function () {
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ admin mới được nhập key CTV.", "adminCtvStockFeedback");
+      const lines = document.getElementById("ctvKeysTextarea").value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key CTV.", "adminCtvStockFeedback");
+
+      try {
+        for (const k of lines) {
+          await addDoc(collection(db, "keys"), { productId: CTV_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
+        }
+        document.getElementById("ctvKeysTextarea").value = "";
+        showMsg("Đã nhập " + lines.length + " key vào kho CTV (330đ/key)!", "adminCtvStockFeedback");
+        await loadCtvStock();
+      } catch (e) { showErr("Lỗi nhập key CTV: " + e.message, "adminCtvStockFeedback"); }
+    };
+
+    window.buyCtvKeys = async function () {
+      clearInlineFeedbacks();
+      const errId = "ctvBuyFeedback";
+      if (!currentUser) return showErr("Vui lòng đăng nhập.", errId);
+      if (!canBuyCtv()) {
+        return showErr("Gói Key CTV (330đ/key) chỉ dành cho CTV! Tài khoản của bạn chưa được cấp quyền CTV.", errId);
+      }
+
+      const qty = Number(document.getElementById("ctvQtyInput").value);
+      if (!Number.isInteger(qty) || qty < 1) {
+        return showErr("Vui lòng nhập số lượng key nguyên từ 1 trở lên.", errId);
+      }
+
+      const totalPrice = qty * CTV_UNIT_PRICE;
+      if (currentBalance < totalPrice) {
+        return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ, bạn đang có " + currentBalance.toLocaleString("vi-VN") + "đ.", errId);
+      }
+
+      try {
+        const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(CTV_PRODUCT_ID);
+        if (validStockDocs.length < qty) {
+          await loadCtvStock();
+          return showErr("Kho CTV chỉ còn " + validStockDocs.length + " key, không đủ " + qty + " key.", errId);
+        }
+
+        const selectedDocs = validStockDocs.slice(0, qty);
+        const boughtKeys = [];
+        for (const keyDoc of selectedDocs) {
+          boughtKeys.push(String(keyDoc.data().code || "").trim());
+          await updateDoc(doc(db, "keys", keyDoc.id), { sold: true, buyerId: currentUser.uid, buyerEmail: currentUser.email, soldAt: serverTimestamp() });
+        }
+
+        const newBalance = currentBalance - totalPrice;
+        await updateDoc(doc(db, "users", currentUser.uid), { balance: newBalance });
+
+        const productTitle = "Gói CTV " + qty + " key (330đ/key)";
+        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
+        const nowText = new Date().toLocaleString("vi-VN");
+
+        await addDoc(collection(db, "orders"), {
+          userId: currentUser.uid, buyerEmail: currentUser.email, productId: CTV_PRODUCT_ID,
+          productName: productTitle, price: totalPrice, keyCode: joinedKeys, purchasedAtText: nowText, createdAt: serverTimestamp()
+        });
+        await logBalanceChange(currentUser.uid, currentUser.email, -totalPrice, newBalance, "Mua " + productTitle);
+
+        currentBalance = newBalance;
+        document.getElementById("ctvQtyInput").value = "";
+        updateCtvCalc();
+        showMsg("Mua thành công " + qty + " key CTV (" + totalPrice.toLocaleString("vi-VN") + "đ)!", errId);
+        await Promise.all([loadCtvStock(), loadOrders(), loadBalanceHistory(), loadLeaderboard()]);
+        openKeyModal(productTitle, joinedKeys, nowText);
+      } catch (e) { showErr("Lỗi khi mua key CTV: " + e.message, errId); }
     };
 
     window.buyBulkKeys = async function () {
