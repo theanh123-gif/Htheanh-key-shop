@@ -30,9 +30,9 @@
     .header-btns button { width: auto; flex: 1; white-space: nowrap; margin: 0; padding: 8px 10px; font-size: 12.5px; border-radius: 9px; }
 
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
-    .stat-box { background: #131722; border: 1px solid #22283a; border-radius: 12px; padding: 12px; position: relative; }
+    .stat-box { background: #131722; border: 1px solid #22283a; border-radius: 12px; padding: 12px; position: relative; min-width: 0; }
     .stat-label { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
-    .stat-val { font-size: 18px; font-weight: 800; margin-top: 6px; }
+    .stat-val { font-size: 18px; font-weight: 800; margin-top: 6px; overflow-wrap: anywhere; }
     .c-green { color: #22c55e; }
     .c-yellow { color: #facc15; }
     .c-pink { color: #fb7185; }
@@ -65,7 +65,7 @@
     .key-check { width: auto; margin: 0; }
     .key-code { font-family: monospace; color: #4ade80; word-break: break-all; font-size: 13px; }
     .key-age { font-size: 11px; color: #94a3b8; }
-    .toolbar { display: flex; gap: 6px; margin: 8px 0; }
+    .toolbar { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
     .toolbar button { width: auto; margin: 0; padding: 7px 10px; font-size: 12px; }
 
     .lag-notice { background: #451a03; border: 1px solid #f59e0b; color: #fef3c7; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
@@ -226,21 +226,30 @@
 
     <div id="tabPanel_keys" style="display:none;">
       <div class="card">
-        <h2>📋 Danh Sách Key Của Tôi</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <h2 style="margin:0;">📋 Danh Sách Key Của Tôi</h2>
+          <button class="dark" style="width:auto; margin:0; padding:6px 10px; font-size:12px;" onclick="clearDisplaySection('ordersList', 'Đã xóa hiển thị danh sách key.')">Xóa hiển thị</button>
+        </div>
         <div id="ordersList">Chưa có đơn hàng nào.</div>
       </div>
     </div>
 
     <div id="tabPanel_history" style="display:none;">
       <div class="card">
-        <h2>🕒 Lịch Sử Biến Động Số Dư</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <h2 style="margin:0;">🕒 Lịch Sử Biến Động Số Dư</h2>
+          <button class="dark" style="width:auto; margin:0; padding:6px 10px; font-size:12px;" onclick="clearDisplaySection('balanceHistoryList', 'Đã xóa hiển thị lịch sử biến động số dư.')">Xóa hiển thị</button>
+        </div>
         <div id="balanceHistoryList">Chưa có lịch sử giao dịch.</div>
       </div>
     </div>
 
     <div id="tabPanel_top" style="display:none;">
       <div class="card">
-        <h2>🏆 Bảng Xếp Hạng Đua Top Mua Key</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <h2 style="margin:0;">🏆 Bảng Xếp Hạng Đua Top Mua Key</h2>
+          <button class="dark" style="width:auto; margin:0; padding:6px 10px; font-size:12px;" onclick="clearDisplaySection('leaderboardList', 'Đã xóa hiển thị bảng xếp hạng.')">Xóa hiển thị</button>
+        </div>
         <div id="leaderboardList">Đang tải bảng xếp hạng...</div>
       </div>
     </div>
@@ -285,6 +294,7 @@
           <button class="dark" onclick="toggleSelectAll('pkg', true)">Chọn hết</button>
           <button class="dark" onclick="toggleSelectAll('pkg', false)">Bỏ chọn</button>
           <button class="red" onclick="deleteSelectedKeys('pkg')">Xóa đã chọn</button>
+          <button class="dark" onclick="clearDisplaySection('adminKeysList', 'Đã xóa hiển thị danh sách key gói.')">Xóa hiển thị</button>
         </div>
         <div id="adminPkgKeysFeedback" class="err"></div>
         <div id="adminKeysList"></div>
@@ -298,6 +308,7 @@
             <button class="dark" onclick="toggleSelectAll('bulk', true)">Chọn hết</button>
             <button class="dark" onclick="toggleSelectAll('bulk', false)">Bỏ chọn</button>
             <button class="red" onclick="deleteSelectedKeys('bulk')">Xóa đã chọn</button>
+            <button class="dark" onclick="clearDisplaySection('adminBulkKeysList', 'Đã xóa hiển thị danh sách key kho sỉ.')">Xóa hiển thị</button>
           </div>
           <div id="adminBulkFeedback" class="err"></div>
           <div id="adminBulkKeysList"></div>
@@ -316,6 +327,12 @@
       const cleaned = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
       if (!cleaned) return "";
       return cleaned.split(/\s*\|\s*|\s*,\s*|\n+/).map(function (s) { return s.trim(); }).filter(Boolean).join("\n");
+    }
+
+    function clearDisplaySection(targetId, noteText) {
+      const el = document.getElementById(targetId);
+      if (!el) return;
+      el.innerHTML = "<div style='color:#94a3b8; font-size:13px; margin-top:6px;'>" + (noteText || "Đã xóa hiển thị.") + "</div>";
     }
 
     window.addEventListener("error", function (ev) {
