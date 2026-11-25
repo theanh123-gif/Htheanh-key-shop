@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>HTHEANH SHOP - Key Tự Động</title>
   <style>
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
@@ -19,7 +20,6 @@
     button.red { background: #dc2626; }
     button.dark { background: #1e2433; border: 1px solid #2e364d; color: #e2e8f0; }
 
-    /* Header Profile */
     .profile-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
     .avatar-circle { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #f43f5e, #fb7185); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: #fff; flex-shrink: 0; }
     .profile-name { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -29,7 +29,6 @@
     .header-btns::-webkit-scrollbar { display: none; }
     .header-btns button { width: auto; flex: 1; white-space: nowrap; margin: 0; padding: 8px 10px; font-size: 12.5px; border-radius: 9px; }
 
-    /* 4 ô thống kê 2x2 */
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
     .stat-box { background: #131722; border: 1px solid #22283a; border-radius: 12px; padding: 12px; position: relative; }
     .stat-label { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
@@ -40,13 +39,11 @@
     .c-blue { color: #38bdf8; }
     .mini-nap-btn { position: absolute; right: 10px; bottom: 10px; width: auto; margin: 0; padding: 5px 9px; font-size: 11px; border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
 
-    /* Thanh Tab lướt ngang */
     .tabs-bar { display: flex; gap: 16px; overflow-x: auto; border-bottom: 1px solid #22283a; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: none; }
     .tabs-bar::-webkit-scrollbar { display: none; }
     .tab-btn { background: none; border: none; color: #94a3b8; font-size: 13.5px; font-weight: 700; padding: 6px 2px; margin: 0; width: auto; white-space: nowrap; border-radius: 0; border-bottom: 2px solid transparent; }
     .tab-btn.active { color: #fb7185; border-bottom-color: #fb7185; }
 
-    /* Lưới gói hàng ngang */
     .pkg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
     @media (max-width: 380px) { .pkg-grid { grid-template-columns: repeat(2, 1fr); } }
     .pkg-tile { background: #191e2c; border: 1.5px solid #2a3146; border-radius: 12px; padding: 10px 6px; text-align: center; cursor: pointer; transition: 0.15s; }
@@ -78,8 +75,9 @@
     .modal-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.85); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 9999; }
     .modal-card { width: 100%; max-width: 460px; background: #131722; border: 1px solid #fb7185; border-radius: 14px; padding: 16px; }
     .modal-key-box { background: #06080d; border: 1px dashed #4ade80; border-radius: 10px; padding: 12px; color: #4ade80; font-family: monospace; font-size: 13.5px; font-weight: 700; word-break: break-all; white-space: pre-line; line-height: 1.55; max-height: 230px; overflow-y: auto; margin: 10px 0; }
-    .rank-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #22283a; font-size: 13.5px; }
+    .rank-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid #22283a; font-size: 13.5px; }
     .rank-row:last-child { border-bottom: none; }
+    .rank-buyer { font-weight: 700; color: #f8fafc; word-break: break-all; }
   </style>
 </head>
 <body>
@@ -185,10 +183,9 @@
       <button id="tabBtn_keys" class="tab-btn" onclick="switchTab('keys')">📋 Danh Sách Key Của Tôi</button>
       <button id="tabBtn_history" class="tab-btn" onclick="switchTab('history')">🕒 Lịch Sử Biến Động Số Dư</button>
       <button id="tabBtn_top" class="tab-btn" onclick="switchTab('top')">🏆 Bảng Xếp Hạng Đua Top</button>
-      <button id="tabBtn_admin" class="tab-btn" style="display:none;" onclick="switchTab('admin')">🛠️ Quản Lý Admin</button>
+      <button id="tabBtn_admin" class="tab-btn" style="display:none;" onclick="switchTab('admin')">Quản lý Admin</button>
     </div>
 
-    <!-- TAB 1: MUA KEY MỚI -->
     <div id="tabPanel_buy">
       <div class="card">
         <h2>⚡ Mua Mã Key Tự Động</h2>
@@ -225,7 +222,6 @@
       </div>
     </div>
 
-    <!-- TAB 2: DANH SÁCH KEY CỦA TÔI -->
     <div id="tabPanel_keys" style="display:none;">
       <div class="card">
         <h2>📋 Danh Sách Key Của Tôi</h2>
@@ -233,7 +229,6 @@
       </div>
     </div>
 
-    <!-- TAB 3: LỊCH SỬ BIẾN ĐỘNG SỐ DƯ -->
     <div id="tabPanel_history" style="display:none;">
       <div class="card">
         <h2>🕒 Lịch Sử Biến Động Số Dư</h2>
@@ -241,7 +236,6 @@
       </div>
     </div>
 
-    <!-- TAB 4: BẢNG XẾP HẠNG ĐUA TOP -->
     <div id="tabPanel_top" style="display:none;">
       <div class="card">
         <h2>🏆 Bảng Xếp Hạng Đua Top Mua Key</h2>
@@ -249,13 +243,23 @@
       </div>
     </div>
 
-    <!-- TAB 5: ADMIN -->
+    <!-- TAB RIÊNG HÀNG NGANG: QUẢN LÝ ADMIN (CHỈ ADMIN MỚI THẤY & DÙNG ĐƯỢC) -->
     <div id="tabPanel_admin" style="display:none;">
       <div class="card">
-        <h2>🛠️ Quản lý kho Key (Admin)</h2>
+        <h2>Quản lý Admin</h2>
         <p style="font-size:12.5px; color:#94a3b8; margin-top:0;">Key chưa bán tự động xóa sau 30 ngày kể từ lúc nhập kho.</p>
 
-        <h3>1. Tạo gói Key mới</h3>
+        <div class="item" style="border-color:#38bdf8;">
+          <h3 style="color:#38bdf8;">Cộng số dư cho tài khoản</h3>
+          <div style="font-size:12px; color:#94a3b8; margin-bottom:4px;">Nhập Email hoặc UID người cần cộng tiền:</div>
+          <input id="targetUserInput" type="text" placeholder="VD: khach@gmail.com hoặc UID" />
+          <div style="font-size:12px; color:#94a3b8; margin-bottom:4px;">Nhập số tiền cộng (VNĐ):</div>
+          <input id="addAmountInput" type="number" step="1" placeholder="VD: 50000" />
+          <button class="green" onclick="adminAddBalance()">Xác nhận cộng số dư</button>
+          <div id="adminBalFeedback" class="err"></div>
+        </div>
+
+        <h3 style="margin-top:16px;">1. Tạo gói Key mới</h3>
         <input id="prodName" placeholder="Tên gói (VD: 1 Ngày)" />
         <input id="prodPrice" type="number" placeholder="Giá bán VNĐ (VD: 7000)" />
         <button class="green" onclick="addProduct()">+ Thêm gói hàng</button>
@@ -292,14 +296,6 @@
           </div>
           <div id="adminBulkFeedback" class="err"></div>
           <div id="adminBulkKeysList"></div>
-        </div>
-
-        <div class="item" style="margin-top:16px; border-color:#38bdf8;">
-          <h3 style="color:#38bdf8;">5. Cộng số dư cho tài khoản</h3>
-          <input id="targetUserInput" type="text" placeholder="Email hoặc UID (VD: htheanh817@gmail.com)" />
-          <input id="addAmountInput" type="number" step="1" placeholder="Số tiền cộng VNĐ (VD: 50000)" />
-          <button class="green" onclick="adminAddBalance()">+ Cộng số dư</button>
-          <div id="adminBalFeedback" class="err"></div>
         </div>
       </div>
     </div>
@@ -339,6 +335,9 @@
     function closePassModal() { document.getElementById("passModalBackdrop").style.display = "none"; }
 
     function switchTab(tabName) {
+      if (tabName === "admin" && typeof window.canOpenAdminTab === "function" && !window.canOpenAdminTab()) {
+        return;
+      }
       ["buy", "keys", "history", "top", "admin"].forEach(function (t) {
         const btn = document.getElementById("tabBtn_" + t);
         const panel = document.getElementById("tabPanel_" + t);
@@ -429,6 +428,13 @@
     let selectedProductId = "";
 
     function isAdmin() { return Boolean(currentUser && currentUser.email === ADMIN_EMAIL); }
+    window.canOpenAdminTab = function () {
+      if (!isAdmin()) {
+        switchTab("buy");
+        return false;
+      }
+      return true;
+    };
 
     function clearInlineFeedbacks() {
       document.querySelectorAll(".msg, .err").forEach(function (el) {
@@ -457,9 +463,7 @@
       el.style.display = "block";
     }
 
-    window.showToastGlobal = function (text) {
-      alert(text);
-    };
+    window.showToastGlobal = function (text) { alert(text); };
 
     function getTimestampMs(ts) {
       if (!ts) return null;
@@ -536,12 +540,8 @@
       document.getElementById("profileRoleBadge").textContent = isAdmin() ? "Quản Trị Viên" : "Thành viên";
 
       document.getElementById("statBalance").textContent = currentBalance.toLocaleString("vi-VN") + "đ";
-      if (typeof totalSpent === "number") {
-        document.getElementById("statTotalSpent").textContent = totalSpent.toLocaleString("vi-VN") + "đ";
-      }
-      if (typeof totalKeys === "number") {
-        document.getElementById("statTotalKeys").textContent = totalKeys.toLocaleString("vi-VN");
-      }
+      if (typeof totalSpent === "number") document.getElementById("statTotalSpent").textContent = totalSpent.toLocaleString("vi-VN") + "đ";
+      if (typeof totalKeys === "number") document.getElementById("statTotalKeys").textContent = totalKeys.toLocaleString("vi-VN");
       document.getElementById("statTotalDeposited").textContent = currentTotalDeposited.toLocaleString("vi-VN") + "đ";
     }
 
@@ -588,8 +588,7 @@
       if (prod.stock === 0) return showErr("Gói này hiện đã hết key trong kho.", errId);
 
       const qtyInput = document.getElementById("selectedPkgQtyInput");
-      const cur = Math.floor(Number(qtyInput.value || 1));
-      const next = cur + delta;
+      const next = Math.floor(Number(qtyInput.value || 1)) + delta;
       if (next < 1) {
         qtyInput.value = "1";
         updateSelectedPkgSummary();
@@ -608,8 +607,7 @@
     window.onSelectedPkgQtyInput = function () {
       const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
       const errEl = document.getElementById("buyPkgFeedback");
-      const qtyInput = document.getElementById("selectedPkgQtyInput");
-      const rawVal = Number(qtyInput.value);
+      const rawVal = Number(document.getElementById("selectedPkgQtyInput").value);
       if (prod && prod.stock > 0 && rawVal > prod.stock) {
         showErr("Kho chỉ còn " + prod.stock + " key, đã đặt về mức tối đa.", "buyPkgFeedback");
       } else if (errEl) {
@@ -623,8 +621,7 @@
       const calcEl = document.getElementById("bulkCalcText");
       document.getElementById("bulkFeedback").style.display = "none";
       if (!Number.isFinite(qty) || qty <= 0) { calcEl.textContent = "0đ"; return; }
-      const total = qty * BULK_UNIT_PRICE;
-      calcEl.textContent = total.toLocaleString("vi-VN") + "đ" + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
+      calcEl.textContent = (qty * BULK_UNIT_PRICE).toLocaleString("vi-VN") + "đ" + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
     };
 
     window.registerUser = async function () {
@@ -637,8 +634,6 @@
           email: email,
           balance: 0,
           totalDeposited: 0,
-          totalSpent: 0,
-          totalKeys: 0,
           createdAt: serverTimestamp()
         });
         showMsg("Đăng ký thành công!", "authFeedback");
@@ -674,23 +669,29 @@
       const authBox = document.getElementById("authBox");
       const shopArea = document.getElementById("shopArea");
       const adminTabBtn = document.getElementById("tabBtn_admin");
+      const adminPanel = document.getElementById("tabPanel_admin");
 
       if (!user) {
         authBox.style.display = "block";
         shopArea.style.display = "none";
         if (adminTabBtn) adminTabBtn.style.display = "none";
+        if (adminPanel) adminPanel.style.display = "none";
         return;
       }
 
       authBox.style.display = "none";
       shopArea.style.display = "block";
-      if (adminTabBtn) adminTabBtn.style.display = isAdmin() ? "inline-block" : "none";
+      const adminOk = isAdmin();
+      if (adminTabBtn) adminTabBtn.style.display = adminOk ? "inline-block" : "none";
+      if (!adminOk && adminPanel && adminPanel.style.display === "block") {
+        switchTab("buy");
+      }
 
       try {
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
         if (!snap.exists()) {
-          await setDoc(userRef, { email: user.email, balance: 0, totalDeposited: 0, totalSpent: 0, totalKeys: 0 });
+          await setDoc(userRef, { email: user.email, balance: 0, totalDeposited: 0 });
           currentBalance = 0;
           currentTotalDeposited = 0;
         } else {
@@ -701,9 +702,7 @@
 
         renderProfileAndStats();
         await Promise.all([loadProducts(), loadBulkStock(), loadOrders(), loadBalanceHistory(), loadLeaderboard()]);
-      } catch (e) {
-        showErr("Lỗi tải dữ liệu: " + e.message, "globalErrBox");
-      }
+      } catch (e) { showErr("Lỗi tải dữ liệu: " + e.message, "globalErrBox"); }
     });
     window.adminAddBalance = async function () {
       clearInlineFeedbacks();
@@ -735,18 +734,8 @@
         const oldDep = Number(uData.totalDeposited || 0);
         const newDep = amount > 0 ? (oldDep + amount) : oldDep;
 
-        await updateDoc(doc(db, "users", targetDoc.id), {
-          balance: newBalance,
-          totalDeposited: newDep
-        });
-
-        await logBalanceChange(
-          targetDoc.id,
-          uData.email || targetDoc.id,
-          amount,
-          newBalance,
-          amount > 0 ? "Admin cộng số dư" : "Admin điều chỉnh số dư"
-        );
+        await updateDoc(doc(db, "users", targetDoc.id), { balance: newBalance, totalDeposited: newDep });
+        await logBalanceChange(targetDoc.id, uData.email || targetDoc.id, amount, newBalance, amount > 0 ? "Admin cộng số dư" : "Admin điều chỉnh số dư");
 
         if (currentUser && targetDoc.id === currentUser.uid) {
           currentBalance = newBalance;
@@ -871,16 +860,10 @@
 
       prodSnap.forEach(function (d) {
         const p = d.data();
-        productsCache.push({
-          id: d.id,
-          name: String(p.name || "Gói Key"),
-          price: Number(p.price || 0),
-          stock: countByProduct[d.id] || 0
-        });
+        productsCache.push({ id: d.id, name: String(p.name || "Gói Key"), price: Number(p.price || 0), stock: countByProduct[d.id] || 0 });
       });
 
       productsCache.sort(function (a, b) { return a.price - b.price; });
-
       if (!selectedProductId || !productsCache.some(function (x) { return x.id === selectedProductId; })) {
         selectedProductId = productsCache[0].id;
       }
@@ -930,9 +913,7 @@
       if (!confirm("Xóa gói \"" + (prod ? prod.name : productId) + "\" và toàn bộ key chưa bán?")) return;
 
       try {
-        const keysSnap = await getDocs(
-          query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false))
-        );
+        const keysSnap = await getDocs(query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false)));
         for (const kDoc of keysSnap.docs) await deleteDoc(doc(db, "keys", kDoc.id));
         await deleteDoc(doc(db, "products", productId));
         showMsg("Đã xóa gói thành công.", "adminImportFeedback");
@@ -960,12 +941,7 @@
 
       try {
         for (const k of lines) {
-          await addDoc(collection(db, "keys"), {
-            productId: BULK_PRODUCT_ID,
-            code: k,
-            sold: false,
-            createdAt: serverTimestamp()
-          });
+          await addDoc(collection(db, "keys"), { productId: BULK_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
         }
         document.getElementById("bulkKeysTextarea").value = "";
         showMsg("Đã nhập " + lines.length + " key vào kho Tùy chọn!", "adminBulkFeedback");
@@ -999,12 +975,7 @@
         const boughtKeys = [];
         for (const keyDoc of selectedDocs) {
           boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), {
-            sold: true,
-            buyerId: currentUser.uid,
-            buyerEmail: currentUser.email,
-            soldAt: serverTimestamp()
-          });
+          await updateDoc(doc(db, "keys", keyDoc.id), { sold: true, buyerId: currentUser.uid, buyerEmail: currentUser.email, soldAt: serverTimestamp() });
         }
 
         const newBalance = currentBalance - totalPrice;
@@ -1015,16 +986,9 @@
         const nowText = new Date().toLocaleString("vi-VN");
 
         await addDoc(collection(db, "orders"), {
-          userId: currentUser.uid,
-          buyerEmail: currentUser.email,
-          productId: BULK_PRODUCT_ID,
-          productName: productTitle,
-          price: totalPrice,
-          keyCode: joinedKeys,
-          purchasedAtText: nowText,
-          createdAt: serverTimestamp()
+          userId: currentUser.uid, buyerEmail: currentUser.email, productId: BULK_PRODUCT_ID,
+          productName: productTitle, price: totalPrice, keyCode: joinedKeys, purchasedAtText: nowText, createdAt: serverTimestamp()
         });
-
         await logBalanceChange(currentUser.uid, currentUser.email, -totalPrice, newBalance, "Mua " + productTitle);
 
         currentBalance = newBalance;
@@ -1067,12 +1031,7 @@
         const boughtKeys = [];
         for (const keyDoc of selectedDocs) {
           boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), {
-            sold: true,
-            buyerId: currentUser.uid,
-            buyerEmail: currentUser.email,
-            soldAt: serverTimestamp()
-          });
+          await updateDoc(doc(db, "keys", keyDoc.id), { sold: true, buyerId: currentUser.uid, buyerEmail: currentUser.email, soldAt: serverTimestamp() });
         }
 
         const newBalance = currentBalance - totalPrice;
@@ -1083,16 +1042,9 @@
         const nowText = new Date().toLocaleString("vi-VN");
 
         await addDoc(collection(db, "orders"), {
-          userId: currentUser.uid,
-          buyerEmail: currentUser.email,
-          productId: prod.id,
-          productName: orderTitle,
-          price: totalPrice,
-          keyCode: joinedKeys,
-          purchasedAtText: nowText,
-          createdAt: serverTimestamp()
+          userId: currentUser.uid, buyerEmail: currentUser.email, productId: prod.id,
+          productName: orderTitle, price: totalPrice, keyCode: joinedKeys, purchasedAtText: nowText, createdAt: serverTimestamp()
         });
-
         await logBalanceChange(currentUser.uid, currentUser.email, -totalPrice, newBalance, "Mua " + orderTitle);
 
         currentBalance = newBalance;
@@ -1122,9 +1074,8 @@
         const o = d.data();
         const priceNum = Number(o.price || 0);
         const keyStr = normalizeKeysLines(o.keyCode || "");
-        const kCount = countKeysInText(keyStr);
         totalSpent += priceNum;
-        totalKeys += kCount;
+        totalKeys += countKeysInText(keyStr);
         orderItems.push({
           sortMs: getTimestampMs(o.createdAt) || 0,
           productName: o.productName || "Gói Key",
@@ -1158,40 +1109,42 @@
     async function loadBalanceHistory() {
       const el = document.getElementById("balanceHistoryList");
       if (!currentUser || !el) return;
-      const snap = await getDocs(query(collection(db, "balance_logs"), where("userId", "==", currentUser.uid)));
-      if (snap.empty) {
-        el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có biến động số dư nào.</div>";
-        return;
-      }
-      const logs = [];
-      snap.forEach(function (d) {
-        const x = d.data();
-        logs.push({
-          sortMs: getTimestampMs(x.createdAt) || 0,
-          amount: Number(x.amount || 0),
-          balanceAfter: Number(x.balanceAfter || 0),
-          note: x.note || "Giao dịch",
-          timeText: x.timeText || formatPurchaseTime(x.createdAt)
+      try {
+        const snap = await getDocs(query(collection(db, "balance_logs"), where("userId", "==", currentUser.uid)));
+        if (snap.empty) {
+          el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có biến động số dư nào.</div>";
+          return;
+        }
+        const logs = [];
+        snap.forEach(function (d) {
+          const x = d.data();
+          logs.push({
+            sortMs: getTimestampMs(x.createdAt) || 0,
+            amount: Number(x.amount || 0),
+            balanceAfter: Number(x.balanceAfter || 0),
+            note: x.note || "Giao dịch",
+            timeText: x.timeText || formatPurchaseTime(x.createdAt)
+          });
         });
-      });
-      logs.sort(function (a, b) { return b.sortMs - a.sortMs; });
+        logs.sort(function (a, b) { return b.sortMs - a.sortMs; });
 
-      let html = "";
-      for (const l of logs) {
-        const isPlus = l.amount >= 0;
-        const sign = isPlus ? "+" : "";
-        const color = isPlus ? "#22c55e" : "#fb7185";
-        html += `
-          <div class="item" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-            <div>
-              <div style="font-weight:700; font-size:13.5px;">${l.note}</div>
-              <div style="font-size:11.5px; color:#94a3b8; margin-top:3px;">🕒 ${l.timeText} • Số dư sau: ${l.balanceAfter.toLocaleString("vi-VN")}đ</div>
+        let html = "";
+        for (const l of logs) {
+          const isPlus = l.amount >= 0;
+          html += `
+            <div class="item" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+              <div>
+                <div style="font-weight:700; font-size:13.5px;">${l.note}</div>
+                <div style="font-size:11.5px; color:#94a3b8; margin-top:3px;">🕒 ${l.timeText} • Số dư sau: ${l.balanceAfter.toLocaleString("vi-VN")}đ</div>
+              </div>
+              <div style="font-weight:800; color:${isPlus ? "#22c55e" : "#fb7185"}; white-space:nowrap;">${isPlus ? "+" : ""}${l.amount.toLocaleString("vi-VN")}đ</div>
             </div>
-            <div style="font-weight:800; color:${color}; white-space:nowrap;">${sign}${l.amount.toLocaleString("vi-VN")}đ</div>
-          </div>
-        `;
+          `;
+        }
+        el.innerHTML = html;
+      } catch (e) {
+        el.innerHTML = "<div style='color:#94a3b8; font-size:13px;'>Không tải được lịch sử biến động.</div>";
       }
-      el.innerHTML = html;
     }
 
     async function loadLeaderboard() {
@@ -1203,26 +1156,28 @@
         snap.forEach(function (d) {
           const o = d.data();
           const uid = o.userId || "unknown";
-          const email = o.buyerEmail || uid.slice(0, 6);
-          if (!byUser[uid]) byUser[uid] = { name: email.split("@")[0], spent: 0, keys: 0 };
+          const fullLabel = String(o.buyerEmail || uid).trim();
+          if (!byUser[uid]) byUser[uid] = { label: fullLabel, spent: 0, keys: 0 };
           byUser[uid].spent += Number(o.price || 0);
           byUser[uid].keys += countKeysInText(o.keyCode || "");
         });
 
-        const list = Object.values(byUser).sort(function (a, b) { return b.spent - a.spent; }).slice(0, 10);
+        const list = Object.values(byUser).sort(function (a, b) { return b.spent - a.spent; });
         if (list.length === 0) {
-          el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có dữ liệu đua top.</div>";
+          el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có người mua nào.</div>";
           return;
         }
 
         let html = "";
         list.forEach(function (u, idx) {
           const medal = idx === 0 ? "🥇" : (idx === 1 ? "🥈" : (idx === 2 ? "🥉" : "#" + (idx + 1)));
-          const masked = u.name.length > 3 ? (u.name.slice(0, 3) + "***") : u.name;
           html += `
             <div class="rank-row">
-              <div><b>${medal} ${masked}</b> <span style="font-size:12px; color:#94a3b8;">(${u.keys} key)</span></div>
-              <div style="color:#facc15; font-weight:800;">${u.spent.toLocaleString("vi-VN")}đ</div>
+              <div>
+                <span class="rank-buyer">${medal} ${u.label}</span>
+                <div style="font-size:12px; color:#94a3b8; margin-top:2px;">Đã mua ${u.keys} key</div>
+              </div>
+              <div style="color:#facc15; font-weight:800; white-space:nowrap;">${u.spent.toLocaleString("vi-VN")}đ</div>
             </div>
           `;
         });
@@ -1258,12 +1213,7 @@
 
       try {
         for (const k of lines) {
-          await addDoc(collection(db, "keys"), {
-            productId: productId,
-            code: k,
-            sold: false,
-            createdAt: serverTimestamp()
-          });
+          await addDoc(collection(db, "keys"), { productId: productId, code: k, sold: false, createdAt: serverTimestamp() });
         }
         document.getElementById("keysTextarea").value = "";
         showMsg("Đã nhập thành công " + lines.length + " key!", "adminImportFeedback");
