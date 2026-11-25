@@ -117,9 +117,11 @@
   <div id="passModalBackdrop" class="modal-backdrop">
     <div class="modal-card">
       <div style="color:#38bdf8; font-size:17px; font-weight:800;">🔒 Đổi Mật Khẩu</div>
+      <div style="font-size:12px; color:#94a3b8; margin-top:4px;">Nhập mật khẩu cũ để xác nhận trước khi đổi mật khẩu mới:</div>
+      <input id="oldPassInput" type="password" placeholder="Nhập mật khẩu cũ..." />
       <input id="newPassInput" type="password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)..." />
       <div style="display:flex; gap:8px; margin-top:6px;">
-        <button class="green" style="margin:0;" onclick="changeUserPassword()">Lưu mật khẩu</button>
+        <button class="green" style="margin:0;" onclick="changeUserPassword()">Xác nhận đổi mật khẩu</button>
         <button class="dark" style="margin:0;" onclick="closePassModal()">Hủy</button>
       </div>
       <div id="passFeedback" class="err"></div>
@@ -130,7 +132,7 @@
 
   <div id="authBox" class="card">
     <h2>⚡ HTHEANH KEY SHOP - Đăng nhập / Đăng ký</h2>
-    <input id="emailInput" type="email" placeholder="Nhập Email của bạn..." />
+    <input id="emailInput" type="text" placeholder="Nhập tên tài khoản (đặt tên gì cũng được)..." />
     <input id="passInput" type="password" placeholder="Nhập mật khẩu (ít nhất 6 ký tự)..." />
     <div style="display:flex; gap:8px;">
       <button onclick="loginUser()">Đăng nhập</button>
@@ -249,12 +251,16 @@
         <p style="font-size:12.5px; color:#94a3b8; margin-top:0;">Key chưa bán tự động xóa sau 30 ngày kể từ lúc nhập kho.</p>
 
         <div class="item" style="border-color:#38bdf8;">
-          <h3 style="color:#38bdf8;">Cộng số dư cho tài khoản</h3>
-          <div style="font-size:12px; color:#94a3b8; margin-bottom:4px;">Nhập Email hoặc UID người cần cộng tiền:</div>
-          <input id="targetUserInput" type="text" placeholder="VD: khach@gmail.com hoặc UID" />
+          <h3 style="color:#38bdf8;">Quản lý số dư & người dùng</h3>
+          <div style="font-size:12px; color:#94a3b8; margin-bottom:4px;">Nhập tên tài khoản, Email hoặc UID người cần xử lý:</div>
+          <input id="targetUserInput" type="text" placeholder="VD: tenkhach hoặc khach@htheanh.shop" />
           <div style="font-size:12px; color:#94a3b8; margin-bottom:4px;">Nhập số tiền cộng (VNĐ):</div>
           <input id="addAmountInput" type="number" step="1" placeholder="VD: 50000" />
-          <button class="green" onclick="adminAddBalance()">Xác nhận cộng số dư</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="green" style="margin:0; flex:1;" onclick="adminAddBalance()">Cộng số dư</button>
+            <button class="dark" style="margin:0; flex:1;" onclick="adminResetBalance()">Xóa số dư (0đ)</button>
+            <button class="red" style="margin:0; flex:1;" onclick="adminDeleteUser()">Xóa người dùng</button>
+          </div>
           <div id="adminBalFeedback" class="err"></div>
         </div>
 
@@ -330,7 +336,12 @@
     function snoozeLagNotice2h() { localStorage.setItem(LAG_SNOOZE_KEY, String(Date.now() + TWO_HOURS_MS)); closeLagNotice(); }
     function openNapModal() { document.getElementById("napModalBackdrop").style.display = "flex"; }
     function closeNapModal() { document.getElementById("napModalBackdrop").style.display = "none"; }
-    function openPassModal() { document.getElementById("passModalBackdrop").style.display = "flex"; }
+    function openPassModal() {
+      document.getElementById("oldPassInput").value = "";
+      document.getElementById("newPassInput").value = "";
+      document.getElementById("passFeedback").style.display = "none";
+      document.getElementById("passModalBackdrop").style.display = "flex";
+    }
     function closePassModal() { document.getElementById("passModalBackdrop").style.display = "none"; }
 
     function switchTab(tabName) {
@@ -392,7 +403,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
       getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-      signOut, onAuthStateChanged, updatePassword
+      signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import {
       getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
@@ -410,6 +421,7 @@
     };
 
     const ADMIN_EMAIL = "htheanh817@gmail.com";
+    const INTERNAL_DOMAIN = "htheanh.shop";
     const BULK_PRODUCT_ID = "bulk_400";
     const BULK_MIN_QTY = 20;
     const BULK_UNIT_PRICE = 400;
@@ -421,6 +433,7 @@
     const db = getFirestore(app);
 
     let currentUser = null;
+    let currentDisplayName = "";
     let currentBalance = 0;
     let currentTotalDeposited = 0;
     let productsCache = [];
@@ -431,6 +444,26 @@
       if (!isAdmin()) { switchTab("buy"); return false; }
       return true;
     };
+
+    function toAuthEmail(rawInput) {
+      const cleaned = String(rawInput || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9._@-]/g, "");
+      if (!cleaned) return "";
+      if (cleaned.includes("@")) return cleaned;
+      return cleaned + "@" + INTERNAL_DOMAIN;
+    }
+
+    function getCleanUsername(rawInput, fallbackEmail) {
+      const raw = String(rawInput || "").trim();
+      if (raw) return raw.includes("@") ? raw.split("@")[0] : raw;
+      const fb = String(fallbackEmail || "user").trim();
+      return fb.includes("@") ? fb.split("@")[0] : fb;
+    }
 
     function clearInlineFeedbacks() {
       document.querySelectorAll(".msg, .err").forEach(function (el) {
@@ -518,10 +551,10 @@
     function renderProfileAndStats(totalSpent, totalKeys) {
       if (!currentUser) return;
       const email = currentUser.email || "user";
-      const shortName = email.split("@")[0];
-      document.getElementById("avatarCircle").textContent = shortName.charAt(0).toUpperCase();
-      document.getElementById("profileDisplayName").textContent = shortName;
-      document.getElementById("profileEmailSub").textContent = email;
+      const displayName = currentDisplayName || getCleanUsername("", email);
+      document.getElementById("avatarCircle").textContent = displayName.charAt(0).toUpperCase();
+      document.getElementById("profileDisplayName").textContent = displayName;
+      document.getElementById("profileEmailSub").textContent = email.endsWith("@" + INTERNAL_DOMAIN) ? ("Tài khoản: " + displayName) : email;
       document.getElementById("profileRoleBadge").textContent = isAdmin() ? "Quản Trị Viên" : "Thành viên";
 
       document.getElementById("statBalance").textContent = currentBalance.toLocaleString("vi-VN") + "đ";
@@ -604,33 +637,61 @@
 
     window.registerUser = async function () {
       clearInlineFeedbacks();
-      const email = document.getElementById("emailInput").value.trim();
+      const rawName = document.getElementById("emailInput").value.trim();
       const pass = document.getElementById("passInput").value;
+      const authEmail = toAuthEmail(rawName);
+      const displayName = getCleanUsername(rawName, authEmail);
+      if (!authEmail) return showErr("Vui lòng nhập tên tài khoản.", "authFeedback");
+
       try {
-        const cred = await createUserWithEmailAndPassword(auth, email, pass);
-        await setDoc(doc(db, "users", cred.user.uid), { email: email, balance: 0, totalDeposited: 0, createdAt: serverTimestamp() });
-        showMsg("Đăng ký thành công!", "authFeedback");
+        const cred = await createUserWithEmailAndPassword(auth, authEmail, pass);
+        await setDoc(doc(db, "users", cred.user.uid), {
+          username: displayName, email: authEmail, balance: 0, totalDeposited: 0, createdAt: serverTimestamp()
+        });
+        showMsg("Đăng ký thành công tài khoản \"" + displayName + "\"!", "authFeedback");
       } catch (e) { showErr("Lỗi đăng ký: " + e.message, "authFeedback"); }
     };
 
     window.loginUser = async function () {
       clearInlineFeedbacks();
-      const email = document.getElementById("emailInput").value.trim();
+      const rawName = document.getElementById("emailInput").value.trim();
       const pass = document.getElementById("passInput").value;
+      const authEmail = toAuthEmail(rawName);
+      if (!authEmail) return showErr("Vui lòng nhập tên tài khoản.", "authFeedback");
+
       try {
-        await signInWithEmailAndPassword(auth, email, pass);
+        await signInWithEmailAndPassword(auth, authEmail, pass);
         showMsg("Đăng nhập thành công!", "authFeedback");
       } catch (e) { showErr("Lỗi đăng nhập: " + e.message, "authFeedback"); }
     };
 
     window.changeUserPassword = async function () {
+      const oldPass = document.getElementById("oldPassInput").value;
       const newPass = document.getElementById("newPassInput").value;
-      if (!newPass || newPass.length < 6) return showErr("Mật khẩu mới phải từ 6 ký tự trở lên.", "passFeedback");
+
+      if (!oldPass) {
+        return showErr("Vui lòng nhập mật khẩu cũ.", "passFeedback");
+      }
+      if (!newPass || newPass.length < 6) {
+        return showErr("Mật khẩu mới phải từ 6 ký tự trở lên.", "passFeedback");
+      }
+      if (!auth.currentUser || !auth.currentUser.email) {
+        return showErr("Vui lòng đăng nhập lại trước khi đổi mật khẩu.", "passFeedback");
+      }
+
       try {
+        const cred = EmailAuthProvider.credential(auth.currentUser.email, oldPass);
+        await reauthenticateWithCredential(auth.currentUser, cred);
         await updatePassword(auth.currentUser, newPass);
+        document.getElementById("oldPassInput").value = "";
         document.getElementById("newPassInput").value = "";
-        showMsg("Đổi mật khẩu thành công!", "passFeedback");
-      } catch (e) { showErr("Lỗi đổi mật khẩu (hãy đăng xuất đăng nhập lại rồi thử): " + e.message, "passFeedback"); }
+        showMsg("Đã xác thực mật khẩu cũ và đổi mật khẩu thành công!", "passFeedback");
+      } catch (e) {
+        if (e && (e.code === "auth/wrong-password" || e.code === "auth/invalid-credential")) {
+          return showErr("Mật khẩu cũ không đúng!", "passFeedback");
+        }
+        showErr("Lỗi đổi mật khẩu: " + e.message, "passFeedback");
+      }
     };
 
     window.logoutUser = async function () { await signOut(auth); location.reload(); };
@@ -657,11 +718,14 @@
       try {
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
+        const fallbackName = getCleanUsername("", user.email);
         if (!snap.exists()) {
-          await setDoc(userRef, { email: user.email, balance: 0, totalDeposited: 0 });
+          await setDoc(userRef, { username: fallbackName, email: user.email, balance: 0, totalDeposited: 0 });
+          currentDisplayName = fallbackName;
           currentBalance = 0; currentTotalDeposited = 0;
         } else {
           const uData = snap.data();
+          currentDisplayName = String(uData.username || fallbackName).trim() || fallbackName;
           currentBalance = Number(uData.balance || 0);
           currentTotalDeposited = Number(uData.totalDeposited || 0);
         }
@@ -676,17 +740,25 @@
 
       const rawTarget = document.getElementById("targetUserInput").value.trim();
       const amount = Number(document.getElementById("addAmountInput").value);
-      if (!rawTarget) return showErr("Nhập Email hoặc UID của tài khoản cần cộng tiền.", "adminBalFeedback");
+      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần cộng tiền.", "adminBalFeedback");
       if (!Number.isFinite(amount) || amount === 0) return showErr("Nhập số tiền hợp lệ (khác 0).", "adminBalFeedback");
 
       try {
         const usersSnap = await getDocs(collection(db, "users"));
         let targetDoc = null;
         const cleanInput = rawTarget.toLowerCase();
+        const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
 
         for (const uDoc of usersSnap.docs) {
           const uData = uDoc.data();
-          if (String(uData.email || "").toLowerCase() === cleanInput || uDoc.id.toLowerCase() === cleanInput) {
+          const uEmail = String(uData.email || "").toLowerCase();
+          const uName = String(uData.username || "").toLowerCase();
+          if (
+            uEmail === cleanInput ||
+            (mappedEmail && uEmail === mappedEmail) ||
+            uName === cleanInput ||
+            uDoc.id.toLowerCase() === cleanInput
+          ) {
             targetDoc = uDoc; break;
           }
         }
@@ -694,6 +766,7 @@
         if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminBalFeedback");
 
         const uData = targetDoc.data();
+        const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
         const oldBalance = Number(uData.balance || 0);
         const newBalance = oldBalance + amount;
         const oldDep = Number(uData.totalDeposited || 0);
@@ -710,11 +783,123 @@
         document.getElementById("addAmountInput").value = "";
         await loadLeaderboard();
         showMsg(
-          "Đã cập nhật số dư cho " + (uData.email || targetDoc.id) + ": " +
+          "Đã cập nhật số dư cho " + targetLabel + ": " +
           oldBalance.toLocaleString("vi-VN") + "đ -> " + newBalance.toLocaleString("vi-VN") + "đ",
           "adminBalFeedback"
         );
       } catch (e) { showErr("Lỗi cộng số dư: " + e.message, "adminBalFeedback"); }
+    };
+
+    window.adminResetBalance = async function () {
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền xóa số dư.", "adminBalFeedback");
+
+      const rawTarget = document.getElementById("targetUserInput").value.trim();
+      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần xóa số dư.", "adminBalFeedback");
+
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        let targetDoc = null;
+        const cleanInput = rawTarget.toLowerCase();
+        const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
+
+        for (const uDoc of usersSnap.docs) {
+          const uData = uDoc.data();
+          const uEmail = String(uData.email || "").toLowerCase();
+          const uName = String(uData.username || "").toLowerCase();
+          if (
+            uEmail === cleanInput ||
+            (mappedEmail && uEmail === mappedEmail) ||
+            uName === cleanInput ||
+            uDoc.id.toLowerCase() === cleanInput
+          ) {
+            targetDoc = uDoc; break;
+          }
+        }
+
+        if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminBalFeedback");
+
+        const uData = targetDoc.data();
+        const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
+        const oldBalance = Number(uData.balance || 0);
+
+        if (oldBalance === 0) {
+          return showErr("Tài khoản " + targetLabel + " hiện đang có số dư 0đ.", "adminBalFeedback");
+        }
+
+        if (!confirm("Xóa toàn bộ số dư (" + oldBalance.toLocaleString("vi-VN") + "đ) của " + targetLabel + " về 0đ?")) return;
+
+        await updateDoc(doc(db, "users", targetDoc.id), { balance: 0 });
+        await logBalanceChange(targetDoc.id, uData.email || targetDoc.id, -oldBalance, 0, "Admin xóa số dư về 0đ");
+
+        if (currentUser && targetDoc.id === currentUser.uid) {
+          currentBalance = 0;
+          renderProfileAndStats();
+          await loadBalanceHistory();
+        }
+
+        await loadLeaderboard();
+        showMsg(
+          "Đã xóa số dư của " + targetLabel + ": " + oldBalance.toLocaleString("vi-VN") + "đ -> 0đ",
+          "adminBalFeedback"
+        );
+      } catch (e) { showErr("Lỗi xóa số dư: " + e.message, "adminBalFeedback"); }
+    };
+
+    window.adminDeleteUser = async function () {
+      clearInlineFeedbacks();
+      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền xóa người dùng.", "adminBalFeedback");
+
+      const rawTarget = document.getElementById("targetUserInput").value.trim();
+      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người dùng cần xóa.", "adminBalFeedback");
+
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        let targetDoc = null;
+        const cleanInput = rawTarget.toLowerCase();
+        const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
+
+        for (const uDoc of usersSnap.docs) {
+          const uData = uDoc.data();
+          const uEmail = String(uData.email || "").toLowerCase();
+          const uName = String(uData.username || "").toLowerCase();
+          if (
+            uEmail === cleanInput ||
+            (mappedEmail && uEmail === mappedEmail) ||
+            uName === cleanInput ||
+            uDoc.id.toLowerCase() === cleanInput
+          ) {
+            targetDoc = uDoc; break;
+          }
+        }
+
+        if (!targetDoc) return showErr("Không tìm thấy người dùng khớp với \"" + rawTarget + "\".", "adminBalFeedback");
+        if (currentUser && targetDoc.id === currentUser.uid) {
+          return showErr("Không thể tự xóa tài khoản admin đang đăng nhập.", "adminBalFeedback");
+        }
+
+        const uData = targetDoc.data();
+        const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
+
+        if (!confirm("Xóa người dùng \"" + targetLabel + "\" cùng dữ liệu đơn hàng và biến động số dư của họ?")) return;
+
+        const [ordersSnap, logsSnap] = await Promise.all([
+          getDocs(query(collection(db, "orders"), where("userId", "==", targetDoc.id))),
+          getDocs(query(collection(db, "balance_logs"), where("userId", "==", targetDoc.id)))
+        ]);
+
+        for (const oDoc of ordersSnap.docs) {
+          try { await deleteDoc(doc(db, "orders", oDoc.id)); } catch (e) {}
+        }
+        for (const lDoc of logsSnap.docs) {
+          try { await deleteDoc(doc(db, "balance_logs", lDoc.id)); } catch (e) {}
+        }
+
+        await deleteDoc(doc(db, "users", targetDoc.id));
+        document.getElementById("targetUserInput").value = "";
+        await loadLeaderboard();
+        showMsg("Đã xóa người dùng \"" + targetLabel + "\" thành công!", "adminBalFeedback");
+      } catch (e) { showErr("Lỗi xóa người dùng: " + e.message, "adminBalFeedback"); }
     };
 
     function buildKeyRowsHtml(docsList, scope) {
@@ -1114,7 +1299,7 @@
           const email = String(u.email || "").trim();
           const uname = String(u.username || "").trim();
           byUser[uDoc.id] = {
-            uid: uDoc.id, label: uname || email || uDoc.id,
+            uid: uDoc.id, label: uname || getCleanUsername("", email) || uDoc.id,
             spent: 0, keys: 0, balance: Number(u.balance || 0)
           };
         });
@@ -1124,9 +1309,7 @@
           const uid = o.userId || "unknown";
           const rawBuyer = String(o.buyerEmail || "").trim();
           if (!byUser[uid]) {
-            byUser[uid] = { uid: uid, label: rawBuyer || uid, spent: 0, keys: 0, balance: 0 };
-          } else if (rawBuyer && byUser[uid].label === uid) {
-            byUser[uid].label = rawBuyer;
+            byUser[uid] = { uid: uid, label: getCleanUsername(rawBuyer, rawBuyer) || uid, spent: 0, keys: 0, balance: 0 };
           }
           byUser[uid].spent += Number(o.price || 0);
           byUser[uid].keys += countKeysInText(o.keyCode || "");
