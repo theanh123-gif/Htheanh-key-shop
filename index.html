@@ -13,8 +13,10 @@
     h1, h2, h3 { margin: 0 0 10px; font-size: 16px; color: #f8fafc; }
     input, textarea, select, button { width: 100%; padding: 10px 12px; margin: 6px 0; border-radius: 10px; border: 1px solid #2a3146; font-size: 14px; }
     input, textarea, select { background: #0c0f17; color: #fff; }
-    button { background: #2563eb; color: #fff; font-weight: 700; border: none; cursor: pointer; }
+    button { background: #2563eb; color: #fff; font-weight: 700; border: none; cursor: pointer; transition: transform 0.08s ease, opacity 0.12s ease; }
+    button:active { transform: scale(0.98); }
     button:hover { opacity: 0.92; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     button.green { background: #16a34a; }
     button.pink { background: #e11d48; }
     button.red { background: #dc2626; }
@@ -31,7 +33,6 @@
     .header-btns { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
     .header-btns::-webkit-scrollbar { display: none; }
     .header-btns button { width: auto; flex: 1; white-space: nowrap; margin: 0; padding: 8px 10px; font-size: 12.5px; border-radius: 9px; }
-
     .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
     .stat-box { background: #131722; border: 1px solid #22283a; border-radius: 12px; padding: 12px; position: relative; min-width: 0; }
     .stat-label { font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
@@ -49,7 +50,7 @@
 
     .pkg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
     @media (max-width: 380px) { .pkg-grid { grid-template-columns: repeat(2, 1fr); } }
-    .pkg-tile { background: #191e2c; border: 1.5px solid #2a3146; border-radius: 12px; padding: 10px 6px; text-align: center; cursor: pointer; transition: 0.15s; }
+    .pkg-tile { background: #191e2c; border: 1.5px solid #2a3146; border-radius: 12px; padding: 10px 6px; text-align: center; cursor: pointer; }
     .pkg-tile.selected { background: rgba(225, 29, 72, 0.16); border-color: #fb7185; }
     .pkg-tile-name { font-size: 13px; font-weight: 700; color: #f8fafc; line-height: 1.3; }
     .pkg-tile-price { font-size: 13px; font-weight: 800; color: #fb7185; margin-top: 4px; }
@@ -87,10 +88,9 @@
 </head>
 <body>
 <div class="wrap">
-
   <div id="lagNoticeBox" class="lag-notice" style="display:none;">
     <div style="font-weight:700; color:#fbbf24; font-size:14px;">⚠️ Thông báo hệ thống</div>
-    <div style="font-size:13px; margin-top:3px;">Web hơi lag, khi nào thấy trong kho có key mới mua.</div>
+    <div style="font-size:13px; margin-top:3px;">Hệ thống tự động giao key ngay lập tức sau khi bấm mua.</div>
     <div>
       <a class="lag-free-link" href="https://zalo.me/g/oz94yupjliwjb42fkrnr" target="_blank" rel="noopener noreferrer">
         🎁 Free key mỗi ngày: https://zalo.me/g/oz94yupjliwjb42fkrnr
@@ -228,7 +228,7 @@
           Tối thiểu 20 key • Thành tiền: <b id="bulkCalcText" style="color:#38bdf8;">0đ</b>
         </div>
         <input id="bulkQtyInput" type="number" min="20" step="1" placeholder="Nhập số lượng key (VD: 20)" oninput="updateBulkCalc()" />
-        <button class="green" onclick="buyBulkKeys()">Mua tùy chọn</button>
+        <button id="buyBulkBtn" class="green" onclick="buyBulkKeys()">Mua tùy chọn</button>
         <div id="bulkFeedback" class="err"></div>
       </div>
 
@@ -367,1268 +367,1132 @@
     </div>
   </div>
 </div>
-  <script>
-    const LAG_SNOOZE_KEY = "htheanh_lag_notice_until_2h";
-    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-    let latestModalKeyText = "";
+<script>
+  const LAG_SNOOZE_KEY = "htheanh_lag_notice_until_2h";
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+  let latestModalKeyText = "";
 
-    function formatKeysOnePerLine(rawText) {
-      const cleaned = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-      if (!cleaned) return "";
-      return cleaned.split(/\s*\|\s*|\s*,\s*|\n+/).map(function (s) { return s.trim(); }).filter(Boolean).join("\n");
+  function formatKeysOnePerLine(rawText) {
+    const cleaned = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+    if (!cleaned) return "";
+    return cleaned.split(/\s*\|\s*|\s*,\s*|\n+/).map(function (s) { return s.trim(); }).filter(Boolean).join("\n");
+  }
+
+  window.addEventListener("error", function (ev) {
+    const errEl = document.getElementById("globalErrBox");
+    if (errEl && ev && ev.message) {
+      errEl.textContent = "Lỗi trang: " + ev.message;
+      errEl.style.display = "block";
     }
+  });
 
-    window.addEventListener("error", function (ev) {
-      const errEl = document.getElementById("globalErrBox");
-      if (errEl && ev && ev.message) {
-        errEl.textContent = "Lỗi trang: " + ev.message;
-        errEl.style.display = "block";
-      }
+  function initLagNotice() {
+    const box = document.getElementById("lagNoticeBox");
+    if (!box) return;
+    const snoozeUntil = Number(localStorage.getItem(LAG_SNOOZE_KEY) || "0");
+    box.style.display = Date.now() < snoozeUntil ? "none" : "block";
+  }
+  function closeLagNotice() { document.getElementById("lagNoticeBox").style.display = "none"; }
+  function snoozeLagNotice2h() { localStorage.setItem(LAG_SNOOZE_KEY, String(Date.now() + TWO_HOURS_MS)); closeLagNotice(); }
+  function closeNapModal() { document.getElementById("napModalBackdrop").style.display = "none"; }
+  function closePassModal() { document.getElementById("passModalBackdrop").style.display = "none"; }
+
+  function switchTab(tabName) {
+    if (tabName === "admin" && typeof window.canOpenAdminTab === "function" && !window.canOpenAdminTab()) return;
+    ["buy", "keys", "history", "top", "admin"].forEach(function (t) {
+      const btn = document.getElementById("tabBtn_" + t);
+      const panel = document.getElementById("tabPanel_" + t);
+      if (btn) btn.classList.toggle("active", t === tabName);
+      if (panel) panel.style.display = (t === tabName) ? "block" : "none";
     });
+    if (tabName === "keys" && typeof window.loadOrders === "function") window.loadOrders();
+    if (tabName === "history" && typeof window.loadBalanceHistory === "function") window.loadBalanceHistory();
+    if (tabName === "top" && typeof window.loadLeaderboard === "function") window.loadLeaderboard();
+    if (tabName === "admin" && typeof window.onOpenAdminTab === "function") window.onOpenAdminTab();
+  }
 
-    function initLagNotice() {
-      const box = document.getElementById("lagNoticeBox");
-      if (!box) return;
-      const snoozeUntil = Number(localStorage.getItem(LAG_SNOOZE_KEY) || "0");
-      box.style.display = Date.now() < snoozeUntil ? "none" : "block";
-    }
-    function closeLagNotice() { document.getElementById("lagNoticeBox").style.display = "none"; }
-    function snoozeLagNotice2h() { localStorage.setItem(LAG_SNOOZE_KEY, String(Date.now() + TWO_HOURS_MS)); closeLagNotice(); }
-    function closeNapModal() { document.getElementById("napModalBackdrop").style.display = "none"; }
-    function closePassModal() { document.getElementById("passModalBackdrop").style.display = "none"; }
+  function openKeyModal(productName, keyText, purchasedAtText) {
+    latestModalKeyText = formatKeysOnePerLine(keyText);
+    document.getElementById("keyModalMeta").textContent = productName + " • " + purchasedAtText;
+    document.getElementById("keyModalCode").textContent = latestModalKeyText;
+    document.getElementById("keyModalBackdrop").style.display = "flex";
+  }
+  function closeKeyModal() { document.getElementById("keyModalBackdrop").style.display = "none"; }
 
-    function switchTab(tabName) {
-      if (tabName === "admin" && typeof window.canOpenAdminTab === "function" && !window.canOpenAdminTab()) return;
-      ["buy", "keys", "history", "top", "admin"].forEach(function (t) {
-        const btn = document.getElementById("tabBtn_" + t);
-        const panel = document.getElementById("tabPanel_" + t);
-        if (btn) btn.classList.toggle("active", t === tabName);
-        if (panel) panel.style.display = (t === tabName) ? "block" : "none";
-      });
-    }
-
-    function openKeyModal(productName, keyText, purchasedAtText) {
-      latestModalKeyText = formatKeysOnePerLine(keyText);
-      document.getElementById("keyModalMeta").textContent = productName + " • " + purchasedAtText;
-      document.getElementById("keyModalCode").textContent = latestModalKeyText;
-      document.getElementById("keyModalBackdrop").style.display = "flex";
-    }
-    function closeKeyModal() { document.getElementById("keyModalBackdrop").style.display = "none"; }
-
-    async function copyTextToClipboard(text) {
-      const formatted = formatKeysOnePerLine(text);
-      if (!formatted) return false;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(formatted);
-          return true;
-        }
-      } catch (e) {}
-      try {
-        const ta = document.createElement("textarea");
-        ta.value = formatted; ta.style.position = "fixed"; ta.style.opacity = "0";
-        document.body.appendChild(ta); ta.focus(); ta.select();
-        const ok = document.execCommand("copy");
-        document.body.removeChild(ta); return ok;
-      } catch (e) { return false; }
-    }
-
-    async function copyModalKey() {
-      const ok = await copyTextToClipboard(latestModalKeyText);
-      alert(ok ? "Đã copy key (mỗi key 1 dòng)!" : "Hãy giữ tay để copy mã key.");
-    }
-
-    async function copyOrderKey(encodedKey) {
-      const ok = await copyTextToClipboard(decodeURIComponent(encodedKey || ""));
-      if (ok && typeof window.showToastGlobal === "function") window.showToastGlobal("Đã copy mã key (mỗi key 1 dòng)!");
-    }
-
-    initLagNotice();
-  </script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import {
-      getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-      signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import {
-      getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
-      collection, getDocs, query, where, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyA06iDqbxW5JGK3wYTKnG45BiJWvgZC5HU",
-      authDomain: "htheanh-real.firebaseapp.com",
-      projectId: "htheanh-real",
-      storageBucket: "htheanh-real.firebasestorage.app",
-      messagingSenderId: "679370583353",
-      appId: "1:679370583353:web:dbf4fea310f5e08f370ce8",
-      measurementId: "G-296WHXVZ4V"
-    };
-
-    const ROOT_ADMIN_EMAIL = "htheanh817@gmail.com";
-    const INTERNAL_DOMAIN = "htheanh.shop";
-    const BULK_PRODUCT_ID = "bulk_400";
-    const BULK_MIN_QTY = 20;
-    const BULK_UNIT_PRICE = 400;
-    const CTV_PRODUCT_ID = "ctv_330";
-    const CTV_UNIT_PRICE = 330;
-    const KEY_TTL_DAYS = 30;
-    const KEY_TTL_MS = KEY_TTL_DAYS * 24 * 60 * 60 * 1000;
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    let currentUser = null;
-    let currentDisplayName = "";
-    let currentIsAdmin = false;
-    let currentIsCtv = false;
-    let currentBalance = 0;
-    let currentTotalDeposited = 0;
-    let productsCache = [];
-    let selectedProductId = "";
-
-    function isRootAdmin() { return Boolean(currentUser && currentUser.email === ROOT_ADMIN_EMAIL); }
-    function isAdmin() { return Boolean(currentUser && (isRootAdmin() || currentIsAdmin)); }
-    function canBuyCtv() { return Boolean(isAdmin() || currentIsCtv); }
-
-    function requireLoginAction(feedbackId, message) {
-      if (currentUser) return true;
-      showErr(message || "Vui lòng đăng nhập tài khoản để thực hiện thao tác này.", feedbackId || "globalErrBox");
-      const authBox = document.getElementById("authBox");
-      if (authBox) {
-        authBox.style.display = "block";
-        authBox.scrollIntoView({ behavior: "smooth", block: "center" });
+  async function copyTextToClipboard(text) {
+    const formatted = formatKeysOnePerLine(text);
+    if (!formatted) return false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(formatted);
+        return true;
       }
-      return false;
+    } catch (e) {}
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = formatted; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta); return ok;
+    } catch (e) { return false; }
+  }
+
+  async function copyModalKey() {
+    const ok = await copyTextToClipboard(latestModalKeyText);
+    alert(ok ? "Đã copy key (mỗi key 1 dòng)!" : "Hãy giữ tay để copy mã key.");
+  }
+
+  async function copyOrderKey(encodedKey) {
+    const ok = await copyTextToClipboard(decodeURIComponent(encodedKey || ""));
+    if (ok && typeof window.showToastGlobal === "function") window.showToastGlobal("Đã copy mã key (mỗi key 1 dòng)!");
+  }
+
+  initLagNotice();
+</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
+    collection, getDocs, query, where, limit, serverTimestamp, runTransaction, writeBatch, onSnapshot
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyA06iDqbxW5JGK3wYTKnG45BiJWvgZC5HU",
+    authDomain: "htheanh-real.firebaseapp.com",
+    projectId: "htheanh-real",
+    storageBucket: "htheanh-real.firebasestorage.app",
+    messagingSenderId: "679370583353",
+    appId: "1:679370583353:web:dbf4fea310f5e08f370ce8",
+    measurementId: "G-296WHXVZ4V"
+  };
+
+  const ROOT_ADMIN_EMAIL = "htheanh817@gmail.com";
+  const INTERNAL_DOMAIN = "htheanh.shop";
+  const BULK_PRODUCT_ID = "bulk_400";
+  const BULK_MIN_QTY = 20;
+  const BULK_UNIT_PRICE = 400;
+  const CTV_PRODUCT_ID = "ctv_330";
+  const CTV_UNIT_PRICE = 330;
+  const KEY_TTL_DAYS = 30;
+  const KEY_TTL_MS = KEY_TTL_DAYS * 24 * 60 * 60 * 1000;
+  const MAX_KEYS_PER_TX = 240;
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUser = null;
+  let currentDisplayName = "";
+  let currentIsAdmin = false;
+  let currentIsCtv = false;
+  let currentBalance = 0;
+  let currentTotalDeposited = 0;
+  let productsCache = [];
+  let stockMap = {};
+  let selectedProductId = "";
+  let isPurchasing = false;
+  let unsubUserDoc = null;
+
+  function isRootAdmin() { return Boolean(currentUser && currentUser.email === ROOT_ADMIN_EMAIL); }
+  function isAdmin() { return Boolean(currentUser && (isRootAdmin() || currentIsAdmin)); }
+  function canBuyCtv() { return Boolean(isAdmin() || currentIsCtv); }
+
+  function requireLoginAction(feedbackId, message) {
+    if (currentUser) return true;
+    showErr(message || "Vui lòng đăng nhập tài khoản để thực hiện thao tác này.", feedbackId || "globalErrBox");
+    const authBox = document.getElementById("authBox");
+    if (authBox) {
+      authBox.style.display = "block";
+      authBox.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+    return false;
+  }
 
-    window.openNapModal = function () {
-      if (!requireLoginAction("globalErrBox", "Vui lòng đăng nhập trước khi nạp tiền.")) return;
-      document.getElementById("napModalBackdrop").style.display = "flex";
-    };
+  window.openNapModal = function () {
+    if (!requireLoginAction("globalErrBox", "Vui lòng đăng nhập trước khi nạp tiền.")) return;
+    document.getElementById("napModalBackdrop").style.display = "flex";
+  };
 
-    window.openPassModal = function () {
-      if (!requireLoginAction("globalErrBox", "Vui lòng đăng nhập trước khi đổi mật khẩu.")) return;
-      document.getElementById("oldPassInput").value = "";
-      document.getElementById("newPassInput").value = "";
-      document.getElementById("passFeedback").style.display = "none";
-      document.getElementById("passModalBackdrop").style.display = "flex";
-    };
+  window.openPassModal = function () {
+    if (!requireLoginAction("globalErrBox", "Vui lòng đăng nhập trước khi đổi mật khẩu.")) return;
+    document.getElementById("oldPassInput").value = "";
+    document.getElementById("newPassInput").value = "";
+    document.getElementById("passFeedback").style.display = "none";
+    document.getElementById("passModalBackdrop").style.display = "flex";
+  };
 
-    window.canOpenAdminTab = function () {
-      if (!currentUser) {
-        switchTab("buy");
-        return requireLoginAction("globalErrBox", "Vui lòng đăng nhập tài khoản Admin để mở tab quản lý.");
-      }
-      if (!isAdmin()) { switchTab("buy"); return false; }
-      return true;
-    };
-
-    function toAuthEmail(rawInput) {
-      const cleaned = String(rawInput || "")
-        .trim().toLowerCase().replace(/\s+/g, "")
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9._@-]/g, "");
-      if (!cleaned) return "";
-      return cleaned.includes("@") ? cleaned : (cleaned + "@" + INTERNAL_DOMAIN);
+  window.canOpenAdminTab = function () {
+    if (!currentUser) {
+      switchTab("buy");
+      return requireLoginAction("globalErrBox", "Vui lòng đăng nhập tài khoản Admin để mở tab quản lý.");
     }
+    if (!isAdmin()) { switchTab("buy"); return false; }
+    return true;
+  };
 
-    function getCleanUsername(rawInput, fallbackEmail) {
-      const raw = String(rawInput || "").trim();
-      if (raw) return raw.includes("@") ? raw.split("@")[0] : raw;
-      const fb = String(fallbackEmail || "user").trim();
-      return fb.includes("@") ? fb.split("@")[0] : fb;
-    }
+  function toAuthEmail(rawInput) {
+    const cleaned = String(rawInput || "")
+      .trim().toLowerCase().replace(/\s+/g, "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9._@-]/g, "");
+    if (!cleaned) return "";
+    return cleaned.includes("@") ? cleaned : (cleaned + "@" + INTERNAL_DOMAIN);
+  }
 
-    function clearInlineFeedbacks() {
-      document.querySelectorAll(".msg, .err").forEach(function (el) {
-        if (el.id !== "globalErrBox") { el.style.display = "none"; el.textContent = ""; }
-      });
-    }
+  function getCleanUsername(rawInput, fallbackEmail) {
+    const raw = String(rawInput || "").trim();
+    if (raw) return raw.includes("@") ? raw.split("@")[0] : raw;
+    const fb = String(fallbackEmail || "user").trim();
+    return fb.includes("@") ? fb.split("@")[0] : fb;
+  }
 
-    function showMsg(text, targetId) {
-      if (!targetId) return;
-      const el = document.getElementById(targetId);
-      if (!el) return;
-      el.className = "msg"; el.textContent = text; el.style.display = "block";
-    }
-
-    function showErr(text, targetId) {
-      const id = targetId || "globalErrBox";
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.className = "err"; el.textContent = text; el.style.display = "block";
-    }
-
-    window.showToastGlobal = function (text) { alert(text); };
-
-    function getTimestampMs(ts) {
-      if (!ts) return null;
-      if (typeof ts.toMillis === "function") return ts.toMillis();
-      if (typeof ts.seconds === "number") return ts.seconds * 1000;
-      const parsed = new Date(ts).getTime();
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-
-    function formatPurchaseTime(ts) {
-      const ms = getTimestampMs(ts);
-      return ms ? new Date(ms).toLocaleString("vi-VN") : new Date().toLocaleString("vi-VN");
-    }
-
-    function isExpiredKey(data) {
-      const createdMs = getTimestampMs(data && data.createdAt);
-      return createdMs ? ((Date.now() - createdMs) >= KEY_TTL_MS) : false;
-    }
-
-    function formatKeyAgeText(data) {
-      const createdMs = getTimestampMs(data && data.createdAt);
-      if (!createdMs) return "Mới nhập";
-      const daysElapsed = Math.floor(Math.max(0, Date.now() - createdMs) / (24 * 60 * 60 * 1000));
-      return "Đã lưu " + daysElapsed + " ngày • Còn ~" + Math.max(0, KEY_TTL_DAYS - daysElapsed) + " ngày tự xóa";
-    }
-
-    function normalizeKeysLines(rawText) {
-      const cleaned = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-      if (!cleaned) return "";
-      return cleaned.split(/\s*\|\s*|\s*,\s*|\n+/).map(function (s) { return s.trim(); }).filter(Boolean).join("\n");
-    }
-
-    function countKeysInText(keyCodeStr) {
-      const lines = normalizeKeysLines(keyCodeStr);
-      return lines ? lines.split("\n").length : 0;
-    }
-
-    async function logBalanceChange(userId, userEmail, deltaAmount, balanceAfter, noteText) {
-      try {
-        await addDoc(collection(db, "balance_logs"), {
-          userId, userEmail: userEmail || "", amount: deltaAmount,
-          balanceAfter, note: noteText, timeText: new Date().toLocaleString("vi-VN"),
-          createdAt: serverTimestamp()
-        });
-      } catch (e) {}
-    }
-
-    async function fetchAndCleanUnsoldKeysByProduct(productId) {
-      const snap = await getDocs(query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false)));
-      const validDocs = [];
-      for (const docSnap of snap.docs) {
-        if (isExpiredKey(docSnap.data())) {
-          try { await deleteDoc(doc(db, "keys", docSnap.id)); } catch (e) {}
-        } else { validDocs.push(docSnap); }
-      }
-      return validDocs;
-    }
-
-    function syncAdminAccessUI() {
-      const adminTabBtn = document.getElementById("tabBtn_admin");
-      const adminPanel = document.getElementById("tabPanel_admin");
-      const roleSection = document.getElementById("adminRoleSection");
-      const adminOk = isAdmin();
-      if (adminTabBtn) adminTabBtn.style.display = adminOk ? "inline-block" : "none";
-      if (!adminOk && adminPanel && adminPanel.style.display === "block") switchTab("buy");
-      if (roleSection) roleSection.style.display = isRootAdmin() ? "block" : "none";
-    }
-
-    function renderProfileAndStats(totalSpent, totalKeys) {
-      if (!currentUser) return;
-      const email = currentUser.email || "user";
-      const displayName = currentDisplayName || getCleanUsername("", email);
-      document.getElementById("avatarCircle").textContent = displayName.charAt(0).toUpperCase();
-      document.getElementById("profileDisplayName").textContent = displayName;
-      document.getElementById("profileEmailSub").textContent = email.endsWith("@" + INTERNAL_DOMAIN) ? ("Tài khoản: " + displayName) : email;
-      document.getElementById("profileRoleBadge").textContent = isRootAdmin() ? "Chủ Hệ Thống" : (isAdmin() ? "Quản Trị Viên" : "Thành viên");
-
-      const ctvBadge = document.getElementById("profileCtvBadge");
-      if (ctvBadge) {
-        ctvBadge.style.display = (currentIsCtv || isAdmin()) ? "inline-block" : "none";
-        ctvBadge.textContent = isAdmin() ? "Admin / CTV" : "CTV";
-      }
-
-      document.getElementById("statBalance").textContent = currentBalance.toLocaleString("vi-VN") + "đ";
-      if (typeof totalSpent === "number") document.getElementById("statTotalSpent").textContent = totalSpent.toLocaleString("vi-VN") + "đ";
-      if (typeof totalKeys === "number") document.getElementById("statTotalKeys").textContent = totalKeys.toLocaleString("vi-VN");
-      document.getElementById("statTotalDeposited").textContent = currentTotalDeposited.toLocaleString("vi-VN") + "đ";
-    }
-
-    function updateSelectedPkgSummary() {
-      const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
-      const qtyInput = document.getElementById("selectedPkgQtyInput");
-      const sumEl = document.getElementById("selectedPkgSummary");
-      const totalEl = document.getElementById("selectedPkgTotal");
-      const btnEl = document.getElementById("buySelectedPkgBtn");
-
-      if (!prod) {
-        sumEl.textContent = "Chưa chọn gói"; totalEl.textContent = "0đ";
-        btnEl.disabled = true; btnEl.style.opacity = "0.5"; return;
-      }
-
-      let qty = Math.floor(Number(qtyInput.value || 1));
-      if (!Number.isFinite(qty) || qty < 1) qty = 1;
-      if (prod.stock > 0 && qty > prod.stock) qty = prod.stock;
-      qtyInput.value = String(qty);
-
-      const total = prod.price * qty;
-      sumEl.textContent = prod.name + " x" + qty;
-      totalEl.textContent = total.toLocaleString("vi-VN") + "đ";
-      btnEl.disabled = prod.stock === 0;
-      btnEl.style.opacity = prod.stock === 0 ? "0.5" : "1";
-    }
-
-    window.selectProductTile = function (productId) {
-      selectedProductId = productId;
-      document.getElementById("buyPkgFeedback").style.display = "none";
-      document.querySelectorAll(".pkg-tile").forEach(function (el) {
-        el.classList.toggle("selected", el.getAttribute("data-id") === productId);
-      });
-      updateSelectedPkgSummary();
-    };
-
-    window.stepSelectedPkgQty = function (delta) {
-      const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
-      const errId = "buyPkgFeedback";
-      if (!prod) return showErr("Vui lòng chọn gói key trước.", errId);
-      if (prod.stock === 0) return showErr("Gói này hiện đã hết key trong kho.", errId);
-
-      const qtyInput = document.getElementById("selectedPkgQtyInput");
-      const next = Math.floor(Number(qtyInput.value || 1)) + delta;
-      if (next < 1) { qtyInput.value = "1"; updateSelectedPkgSummary(); return showErr("Số lượng tối thiểu là 1 key.", errId); }
-      if (next > prod.stock) { qtyInput.value = String(prod.stock); updateSelectedPkgSummary(); return showErr("Kho chỉ còn " + prod.stock + " key.", errId); }
-      document.getElementById(errId).style.display = "none";
-      qtyInput.value = String(next); updateSelectedPkgSummary();
-    };
-
-    window.onSelectedPkgQtyInput = function () {
-      const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
-      const errEl = document.getElementById("buyPkgFeedback");
-      const rawVal = Number(document.getElementById("selectedPkgQtyInput").value);
-      if (prod && prod.stock > 0 && rawVal > prod.stock) showErr("Kho chỉ còn " + prod.stock + " key, đã đặt về mức tối đa.", "buyPkgFeedback");
-      else if (errEl) errEl.style.display = "none";
-      updateSelectedPkgSummary();
-    };
-
-    window.updateBulkCalc = function () {
-      const qty = Number(document.getElementById("bulkQtyInput").value);
-      const calcEl = document.getElementById("bulkCalcText");
-      document.getElementById("bulkFeedback").style.display = "none";
-      if (!Number.isFinite(qty) || qty <= 0) { calcEl.textContent = "0đ"; return; }
-      calcEl.textContent = (qty * BULK_UNIT_PRICE).toLocaleString("vi-VN") + "đ" + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
-    };
-
-    window.updateCtvCalc = function () {
-      const qty = Number(document.getElementById("ctvQtyInput").value);
-      const calcEl = document.getElementById("ctvCalcText");
-      document.getElementById("ctvBuyFeedback").style.display = "none";
-      if (!Number.isFinite(qty) || qty <= 0) { calcEl.textContent = "0đ"; return; }
-      calcEl.textContent = (qty * CTV_UNIT_PRICE).toLocaleString("vi-VN") + "đ";
-    };
-
-    window.registerUser = async function () {
-      clearInlineFeedbacks();
-      const rawName = document.getElementById("emailInput").value.trim();
-      const pass = document.getElementById("passInput").value;
-      const authEmail = toAuthEmail(rawName);
-      const displayName = getCleanUsername(rawName, authEmail);
-      if (!authEmail) return showErr("Vui lòng nhập tên tài khoản.", "authFeedback");
-
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, authEmail, pass);
-        await setDoc(doc(db, "users", cred.user.uid), {
-          username: displayName, email: authEmail, isAdmin: false, isCtv: false,
-          balance: 0, totalDeposited: 0, createdAt: serverTimestamp()
-        });
-        showMsg("Đăng ký thành công tài khoản \"" + displayName + "\"!", "authFeedback");
-      } catch (e) { showErr("Lỗi đăng ký: " + e.message, "authFeedback"); }
-    };
-
-    window.loginUser = async function () {
-      clearInlineFeedbacks();
-      const rawName = document.getElementById("emailInput").value.trim();
-      const pass = document.getElementById("passInput").value;
-      const authEmail = toAuthEmail(rawName);
-      if (!authEmail) return showErr("Vui lòng nhập tên tài khoản.", "authFeedback");
-
-      try {
-        await signInWithEmailAndPassword(auth, authEmail, pass);
-        showMsg("Đăng nhập thành công!", "authFeedback");
-      } catch (e) { showErr("Lỗi đăng nhập: " + e.message, "authFeedback"); }
-    };
-
-    window.changeUserPassword = async function () {
-      const oldPass = document.getElementById("oldPassInput").value;
-      const newPass = document.getElementById("newPassInput").value;
-      if (!oldPass) return showErr("Vui lòng nhập mật khẩu cũ.", "passFeedback");
-      if (!newPass || newPass.length < 6) return showErr("Mật khẩu mới phải từ 6 ký tự trở lên.", "passFeedback");
-      if (!auth.currentUser || !auth.currentUser.email) return showErr("Vui lòng đăng nhập lại trước khi đổi mật khẩu.", "passFeedback");
-
-      try {
-        const cred = EmailAuthProvider.credential(auth.currentUser.email, oldPass);
-        await reauthenticateWithCredential(auth.currentUser, cred);
-        await updatePassword(auth.currentUser, newPass);
-        document.getElementById("oldPassInput").value = ""; document.getElementById("newPassInput").value = "";
-        showMsg("Đã xác thực mật khẩu cũ và đổi mật khẩu thành công!", "passFeedback");
-      } catch (e) {
-        if (e && (e.code === "auth/wrong-password" || e.code === "auth/invalid-credential")) return showErr("Mật khẩu cũ không đúng!", "passFeedback");
-        showErr("Lỗi đổi mật khẩu: " + e.message, "passFeedback");
-      }
-    };
-
-    window.logoutUser = async function () {
-      if (!currentUser) return showErr("Bạn chưa đăng nhập tài khoản nào.", "authFeedback");
-      await signOut(auth);
-      location.reload();
-    };
-
-    async function loadPublicShopData() {
-      try {
-        await Promise.all([
-          window.loadProducts(),
-          window.loadBulkStock(),
-          window.loadCtvStock(),
-          window.loadLeaderboard()
-        ]);
-      } catch (e) {
-        showErr("Lỗi tải dữ liệu: " + e.message, "globalErrBox");
-      }
-    }
-
-    onAuthStateChanged(auth, async function (user) {
-      currentUser = user;
-      const authBox = document.getElementById("authBox");
-      const shopArea = document.getElementById("shopArea");
-
-      if (!user) {
-        currentDisplayName = "";
-        currentIsAdmin = false;
-        currentIsCtv = false;
-        currentBalance = 0;
-        currentTotalDeposited = 0;
-        authBox.style.display = "block";
-        shopArea.style.display = "block";
-        document.getElementById("avatarCircle").textContent = "K";
-        document.getElementById("profileDisplayName").textContent = "Khách";
-        document.getElementById("profileRoleBadge").textContent = "Chưa đăng nhập";
-        document.getElementById("profileCtvBadge").style.display = "none";
-        document.getElementById("profileEmailSub").textContent = "Xem gói key tự do • Đăng nhập để mua hoặc quản lý";
-        document.getElementById("statBalance").textContent = "0đ";
-        document.getElementById("statTotalSpent").textContent = "0đ";
-        document.getElementById("statTotalKeys").textContent = "0";
-        document.getElementById("statTotalDeposited").textContent = "0đ";
-        document.getElementById("ordersList").innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Vui lòng đăng nhập để xem key đã mua.</div>";
-        document.getElementById("balanceHistoryList").innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Vui lòng đăng nhập để xem lịch sử biến động số dư.</div>";
-        syncAdminAccessUI();
-        await loadPublicShopData();
-        return;
-      }
-
-      authBox.style.display = "none";
-      shopArea.style.display = "block";
-
-      try {
-        const userRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userRef);
-        const fallbackName = getCleanUsername("", user.email);
-        if (!snap.exists()) {
-          await setDoc(userRef, { username: fallbackName, email: user.email, isAdmin: false, isCtv: false, balance: 0, totalDeposited: 0 });
-          currentDisplayName = fallbackName; currentIsAdmin = false; currentIsCtv = false; currentBalance = 0; currentTotalDeposited = 0;
-        } else {
-          const uData = snap.data();
-          currentDisplayName = String(uData.username || fallbackName).trim() || fallbackName;
-          currentIsAdmin = Boolean(uData.isAdmin); currentIsCtv = Boolean(uData.isCtv);
-          currentBalance = Number(uData.balance || 0); currentTotalDeposited = Number(uData.totalDeposited || 0);
-        }
-
-        syncAdminAccessUI();
-        renderProfileAndStats();
-        await Promise.all([
-          window.loadProducts(), window.loadBulkStock(), window.loadCtvStock(),
-          window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard(),
-          loadAdminList(), window.loadCtvList()
-        ]);
-      } catch (e) { showErr("Lỗi tải dữ liệu: " + e.message, "globalErrBox"); }
+  function clearInlineFeedbacks() {
+    document.querySelectorAll(".msg, .err").forEach(function (el) {
+      if (el.id !== "globalErrBox") { el.style.display = "none"; el.textContent = ""; }
     });
+  }
 
-    async function findUserDocByInput(rawTarget) {
-      const usersSnap = await getDocs(collection(db, "users"));
-      const cleanInput = String(rawTarget || "").trim().toLowerCase();
-      const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
+  function showMsg(text, targetId) {
+    if (!targetId) return;
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    el.className = "msg"; el.textContent = text; el.style.display = "block";
+  }
 
-      for (const uDoc of usersSnap.docs) {
-        const uData = uDoc.data();
-        const uEmail = String(uData.email || "").toLowerCase();
-        const uName = String(uData.username || "").toLowerCase();
-        if (uEmail === cleanInput || (mappedEmail && uEmail === mappedEmail) || uName === cleanInput || uDoc.id.toLowerCase() === cleanInput) return uDoc;
-      }
-      return null;
+  function showErr(text, targetId) {
+    const id = targetId || "globalErrBox";
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = "err"; el.textContent = text; el.style.display = "block";
+  }
+
+  window.showToastGlobal = function (text) { alert(text); };
+
+  function getTimestampMs(ts) {
+    if (!ts) return null;
+    if (typeof ts.toMillis === "function") return ts.toMillis();
+    if (typeof ts.seconds === "number") return ts.seconds * 1000;
+    const parsed = new Date(ts).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function formatPurchaseTime(ts) {
+    const ms = getTimestampMs(ts);
+    return ms ? new Date(ms).toLocaleString("vi-VN") : new Date().toLocaleString("vi-VN");
+  }
+
+  function isExpiredKey(data) {
+    const createdMs = getTimestampMs(data && data.createdAt);
+    return createdMs ? ((Date.now() - createdMs) >= KEY_TTL_MS) : false;
+  }
+
+  function formatKeyAgeText(data) {
+    const createdMs = getTimestampMs(data && data.createdAt);
+    if (!createdMs) return "Mới nhập";
+    const daysElapsed = Math.floor(Math.max(0, Date.now() - createdMs) / (24 * 60 * 60 * 1000));
+    return "Đã lưu " + daysElapsed + " ngày • Còn ~" + Math.max(0, KEY_TTL_DAYS - daysElapsed) + " ngày tự xóa";
+  }
+
+  function normalizeKeysLines(rawText) {
+    const cleaned = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+    if (!cleaned) return "";
+    return cleaned.split(/\s*\|\s*|\s*,\s*|\n+/).map(function (s) { return s.trim(); }).filter(Boolean).join("\n");
+  }
+
+  function deduplicateKeyList(lines) {
+    const seen = new Set();
+    const out = [];
+    for (const line of lines) {
+      const k = String(line || "").trim();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(k);
     }
+    return out;
+  }
 
-    async function loadAdminList() {
-      const box = document.getElementById("adminListBox");
-      if (!box) return;
-      try {
-        const snap = await getDocs(collection(db, "users"));
-        const items = [];
-        snap.forEach(function (uDoc) {
-          const u = uDoc.data();
-          const email = String(u.email || "").trim().toLowerCase();
-          const label = String(u.username || u.email || uDoc.id).trim();
-          if (email === ROOT_ADMIN_EMAIL) items.push(`<span class="ctv-chip">👑 ${label} (Gốc)</span>`);
-          else if (u.isAdmin) {
-            const safeLabel = label.replace(/'/g, "");
-            items.push(`<span class="ctv-chip"><span>🛡️ ${label}</span><button class="red" style="width:auto; margin:0; padding:2px 7px; font-size:11px; border-radius:999px;" onclick="quickRemoveAdmin('${uDoc.id}', '${safeLabel}')">Xóa quyền</button></span>`);
-          }
-        });
-        box.innerHTML = items.length ? items.join("") : "<span style='color:#94a3b8;'>Chỉ có Admin gốc.</span>";
-      } catch (e) { box.innerHTML = "<span style='color:#94a3b8;'>Không tải được danh sách Admin.</span>"; }
+  function countKeysInText(keyCodeStr) {
+    const lines = normalizeKeysLines(keyCodeStr);
+    return lines ? lines.split("\n").length : 0;
+  }
+  function setBuyButtonsBusy(busy, labelText) {
+    const pkgBtn = document.getElementById("buySelectedPkgBtn");
+    const bulkBtn = document.getElementById("buyBulkBtn");
+    const ctvBtn = document.getElementById("buyCtvBtn");
+    if (pkgBtn) {
+      pkgBtn.disabled = busy;
+      pkgBtn.textContent = busy ? (labelText || "⏳ Đang xuất key...") : "⚡ Mua Key Ngay";
     }
-
-    window.quickRemoveAdmin = async function (uid, label) {
-      if (!isRootAdmin()) return;
-      if (!confirm("Xóa quyền Admin của \"" + label + "\"?")) return;
-      try {
-        await updateDoc(doc(db, "users", uid), { isAdmin: false });
-        if (currentUser && currentUser.uid === uid) { currentIsAdmin = false; syncAdminAccessUI(); renderProfileAndStats(); }
-        await loadAdminList();
-        showMsg("Đã xóa quyền Admin của \"" + label + "\".", "adminRoleFeedback");
-      } catch (e) { showErr("Lỗi xóa quyền Admin: " + e.message, "adminRoleFeedback"); }
-    };
-
-    window.adminSetAdminRole = async function (grantAdmin) {
-      clearInlineFeedbacks();
-      if (!isRootAdmin()) return showErr("Chỉ Admin gốc mới có quyền cấp hoặc xóa quyền Admin.", "adminRoleFeedback");
-
-      const rawTarget = document.getElementById("adminRoleTargetInput").value.trim();
-      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần cấp/xóa quyền Admin.", "adminRoleFeedback");
-
-      try {
-        const targetDoc = await findUserDocByInput(rawTarget);
-        if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminRoleFeedback");
-
-        const uData = targetDoc.data();
-        const email = String(uData.email || "").trim().toLowerCase();
-        const label = String(uData.username || uData.email || targetDoc.id).trim();
-        if (!grantAdmin && email === ROOT_ADMIN_EMAIL) return showErr("Không thể xóa quyền Admin của tài khoản gốc.", "adminRoleFeedback");
-
-        await updateDoc(doc(db, "users", targetDoc.id), { isAdmin: Boolean(grantAdmin) });
-        if (currentUser && targetDoc.id === currentUser.uid) { currentIsAdmin = Boolean(grantAdmin); syncAdminAccessUI(); renderProfileAndStats(); }
-
-        document.getElementById("adminRoleTargetInput").value = "";
-        await Promise.all([loadAdminList(), window.loadProducts(), window.loadBulkStock(), window.loadCtvStock()]);
-        showMsg(grantAdmin ? ("Đã cấp quyền Admin cho \"" + label + "\"!") : ("Đã xóa quyền Admin của \"" + label + "\"!"), "adminRoleFeedback");
-      } catch (e) { showErr("Lỗi cập nhật quyền Admin: " + e.message, "adminRoleFeedback"); }
-    };
-
-    window.__htheanhCore = {
-      db,
-      BULK_PRODUCT_ID, BULK_MIN_QTY, BULK_UNIT_PRICE,
-      CTV_PRODUCT_ID, CTV_UNIT_PRICE,
-      getCurrentUser: function () { return currentUser; },
-      getCurrentBalance: function () { return currentBalance; },
-      setCurrentBalance: function (val) { currentBalance = Number(val || 0); },
-      getCurrentIsAdmin: function () { return currentIsAdmin; },
-      setCurrentIsAdmin: function (val) { currentIsAdmin = Boolean(val); },
-      getCurrentIsCtv: function () { return currentIsCtv; },
-      setCurrentIsCtv: function (val) { currentIsCtv = Boolean(val); },
-      getCurrentTotalDeposited: function () { return currentTotalDeposited; },
-      setCurrentTotalDeposited: function (val) { currentTotalDeposited = Number(val || 0); },
-      getProductsCache: function () { return productsCache; },
-      setProductsCache: function (val) { productsCache = val; },
-      getSelectedProductId: function () { return selectedProductId; },
-      setSelectedProductId: function (val) { selectedProductId = val; },
-      isAdmin, canBuyCtv, requireLoginAction, getCleanUsername, clearInlineFeedbacks,
-      showMsg, showErr, getTimestampMs, formatPurchaseTime, formatKeyAgeText,
-      normalizeKeysLines, countKeysInText, logBalanceChange,
-      fetchAndCleanUnsoldKeysByProduct, renderProfileAndStats, updateSelectedPkgSummary,
-      findUserDocByInput, loadAdminList
-    };
-  </script>
-  <script type="module">
-    import {
-      doc, updateDoc, addDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    const core = window.__htheanhCore;
-    const {
-      db, BULK_PRODUCT_ID, CTV_PRODUCT_ID,
-      isAdmin, clearInlineFeedbacks, showMsg, showErr,
-      formatKeyAgeText, logBalanceChange, fetchAndCleanUnsoldKeysByProduct,
-      renderProfileAndStats, findUserDocByInput, loadAdminList
-    } = core;
-
-    window.loadCtvList = async function () {
-      const box = document.getElementById("ctvListBox");
-      if (!box) return;
-      try {
-        const snap = await getDocs(query(collection(db, "users"), where("isCtv", "==", true)));
-        if (snap.empty) { box.innerHTML = "<span style='color:#94a3b8;'>Chưa có CTV nào.</span>"; return; }
-        let html = "";
-        snap.forEach(function (uDoc) {
-          const u = uDoc.data();
-          const label = String(u.username || u.email || uDoc.id).trim();
-          html += `<span class="ctv-chip"><span>⭐ ${label}</span><button class="red" style="width:auto; margin:0; padding:2px 7px; font-size:11px; border-radius:999px;" onclick="quickRemoveCtv('${uDoc.id}', '${label.replace(/'/g, "")}')">Gỡ</button></span>`;
-        });
-        box.innerHTML = html;
-      } catch (e) { box.innerHTML = "<span style='color:#94a3b8;'>Không tải được danh sách CTV.</span>"; }
-    };
-
-    window.quickRemoveCtv = async function (uid, label) {
-      if (!isAdmin()) return;
-      if (!confirm("Gỡ quyền CTV của \"" + label + "\"?")) return;
-      try {
-        await updateDoc(doc(db, "users", uid), { isCtv: false });
-        const curUser = core.getCurrentUser();
-        if (curUser && curUser.uid === uid) { core.setCurrentIsCtv(false); renderProfileAndStats(); }
-        await window.loadCtvList();
-        showMsg("Đã gỡ quyền CTV của \"" + label + "\".", "adminCtvFeedback");
-      } catch (e) { showErr("Lỗi gỡ CTV: " + e.message, "adminCtvFeedback"); }
-    };
-
-    window.adminSetCtvRole = async function (makeCtv) {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền quản lý CTV.", "adminCtvFeedback");
-      const rawTarget = document.getElementById("ctvTargetInput").value.trim();
-      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần thêm/gỡ CTV.", "adminCtvFeedback");
-
-      try {
-        const targetDoc = await findUserDocByInput(rawTarget);
-        if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminCtvFeedback");
-        const uData = targetDoc.data();
-        const label = String(uData.username || uData.email || targetDoc.id).trim();
-        await updateDoc(doc(db, "users", targetDoc.id), { isCtv: Boolean(makeCtv) });
-        const curUser = core.getCurrentUser();
-        if (curUser && targetDoc.id === curUser.uid) { core.setCurrentIsCtv(Boolean(makeCtv)); renderProfileAndStats(); }
-        document.getElementById("ctvTargetInput").value = "";
-        await window.loadCtvList();
-        showMsg(makeCtv ? ("Đã thêm \"" + label + "\" làm CTV!") : ("Đã gỡ quyền CTV của \"" + label + "\"."), "adminCtvFeedback");
-      } catch (e) { showErr("Lỗi cập nhật CTV: " + e.message, "adminCtvFeedback"); }
-    };
-
-    window.adminAddBalance = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền cộng số dư.", "adminBalFeedback");
-      const rawTarget = document.getElementById("targetUserInput").value.trim();
-      const amount = Number(document.getElementById("addAmountInput").value);
-      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần cộng tiền.", "adminBalFeedback");
-      if (!Number.isFinite(amount) || amount === 0) return showErr("Nhập số tiền hợp lệ (khác 0).", "adminBalFeedback");
-
-      try {
-        const targetDoc = await findUserDocByInput(rawTarget);
-        if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminBalFeedback");
-        const uData = targetDoc.data();
-        const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
-        const oldBalance = Number(uData.balance || 0);
-        const newBalance = oldBalance + amount;
-        const oldDep = Number(uData.totalDeposited || 0);
-        const newDep = amount > 0 ? (oldDep + amount) : oldDep;
-
-        await updateDoc(doc(db, "users", targetDoc.id), { balance: newBalance, totalDeposited: newDep });
-        await logBalanceChange(targetDoc.id, uData.email || targetDoc.id, amount, newBalance, amount > 0 ? "Admin cộng số dư" : "Admin điều chỉnh số dư");
-        const curUser = core.getCurrentUser();
-        if (curUser && targetDoc.id === curUser.uid) {
-          core.setCurrentBalance(newBalance);
-          core.setCurrentTotalDeposited(newDep);
-          renderProfileAndStats();
-          await window.loadBalanceHistory();
-        }
-
-        document.getElementById("addAmountInput").value = "";
-        await window.loadLeaderboard();
-        showMsg("Đã cập nhật số dư cho " + targetLabel + ": " + oldBalance.toLocaleString("vi-VN") + "đ -> " + newBalance.toLocaleString("vi-VN") + "đ", "adminBalFeedback");
-      } catch (e) { showErr("Lỗi cộng số dư: " + e.message, "adminBalFeedback"); }
-    };
-
-    window.adminResetBalance = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền xóa số dư.", "adminBalFeedback");
-      const rawTarget = document.getElementById("targetUserInput").value.trim();
-      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người cần xóa số dư.", "adminBalFeedback");
-
-      try {
-        const targetDoc = await findUserDocByInput(rawTarget);
-        if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminBalFeedback");
-        const uData = targetDoc.data();
-        const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
-        const oldBalance = Number(uData.balance || 0);
-        if (oldBalance === 0) return showErr("Tài khoản " + targetLabel + " hiện đang có số dư 0đ.", "adminBalFeedback");
-        if (!confirm("Xóa toàn bộ số dư (" + oldBalance.toLocaleString("vi-VN") + "đ) của " + targetLabel + " về 0đ?")) return;
-
-        await updateDoc(doc(db, "users", targetDoc.id), { balance: 0 });
-        await logBalanceChange(targetDoc.id, uData.email || targetDoc.id, -oldBalance, 0, "Admin xóa số dư về 0đ");
-        const curUser = core.getCurrentUser();
-        if (curUser && targetDoc.id === curUser.uid) { core.setCurrentBalance(0); renderProfileAndStats(); await window.loadBalanceHistory(); }
-        await window.loadLeaderboard();
-        showMsg("Đã xóa số dư của " + targetLabel + ": " + oldBalance.toLocaleString("vi-VN") + "đ -> 0đ", "adminBalFeedback");
-      } catch (e) { showErr("Lỗi xóa số dư: " + e.message, "adminBalFeedback"); }
-    };
-
-    window.adminDeleteUser = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới có quyền xóa người dùng.", "adminBalFeedback");
-      const rawTarget = document.getElementById("targetUserInput").value.trim();
-      if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID người dùng cần xóa.", "adminBalFeedback");
-
-      try {
-        const targetDoc = await findUserDocByInput(rawTarget);
-        if (!targetDoc) return showErr("Không tìm thấy người dùng khớp với \"" + rawTarget + "\".", "adminBalFeedback");
-        const curUser = core.getCurrentUser();
-        if (curUser && targetDoc.id === curUser.uid) return showErr("Không thể tự xóa tài khoản admin đang đăng nhập.", "adminBalFeedback");
-        const uData = targetDoc.data();
-        const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
-        if (!confirm("Xóa người dùng \"" + targetLabel + "\" cùng dữ liệu đơn hàng và biến động số dư của họ?")) return;
-
-        const [ordersSnap, logsSnap] = await Promise.all([
-          getDocs(query(collection(db, "orders"), where("userId", "==", targetDoc.id))),
-          getDocs(query(collection(db, "balance_logs"), where("userId", "==", targetDoc.id)))
-        ]);
-        for (const oDoc of ordersSnap.docs) { try { await deleteDoc(doc(db, "orders", oDoc.id)); } catch (e) {} }
-        for (const lDoc of logsSnap.docs) { try { await deleteDoc(doc(db, "balance_logs", lDoc.id)); } catch (e) {} }
-        await deleteDoc(doc(db, "users", targetDoc.id));
-        document.getElementById("targetUserInput").value = "";
-        await Promise.all([window.loadLeaderboard(), window.loadCtvList(), loadAdminList()]);
-        showMsg("Đã xóa người dùng \"" + targetLabel + "\" thành công!", "adminBalFeedback");
-      } catch (e) { showErr("Lỗi xóa người dùng: " + e.message, "adminBalFeedback"); }
-    };
-
-    window.buildKeyRowsHtml = function (docsList, scope) {
-      let html = "";
-      docsList.forEach(function (docSnap) {
-        const k = docSnap.data();
-        const codeText = String(k.code || "");
-        const safeCode = codeText.replace(/'/g, "");
-        html += `<div class="key-row" data-code="${codeText.toLowerCase()}"><div class="key-left"><input type="checkbox" class="key-check key-cb-${scope}" value="${docSnap.id}" /><div><div class="key-code">${codeText}</div><div class="key-age">${formatKeyAgeText(k)}</div></div></div><button class="red" style="width:auto; margin:0; padding:6px 10px; font-size:12px;" onclick="deleteKey('${docSnap.id}', '${safeCode}', '${scope}')">Xóa</button></div>`;
-      });
-      return html;
-    };
-
-    window.getListIdByScope = function (scope) { return scope === "bulk" ? "adminBulkKeysList" : (scope === "ctv" ? "adminCtvKeysList" : "adminKeysList"); };
-    window.getInputIdByScope = function (scope) { return scope === "bulk" ? "bulkSearchInput" : (scope === "ctv" ? "ctvSearchInput" : "pkgSearchInput"); };
-    window.getFeedbackIdByScope = function (scope) { return scope === "bulk" ? "adminBulkFeedback" : (scope === "ctv" ? "adminCtvStockFeedback" : "adminPkgKeysFeedback"); };
-
-    window.filterAdminKeys = function (scope) {
-      const inputEl = document.getElementById(window.getInputIdByScope(scope));
-      const listId = window.getListIdByScope(scope);
-      const kw = (inputEl ? inputEl.value : "").trim().toLowerCase();
-      document.querySelectorAll("#" + listId + " .key-row").forEach(function (row) {
-        const code = row.getAttribute("data-code") || "";
-        row.style.display = (!kw || code.includes(kw)) ? "flex" : "none";
-      });
-    };
-
-    window.toggleSelectAll = function (scope, checked) {
-      const listId = window.getListIdByScope(scope);
-      document.querySelectorAll("#" + listId + " .key-row").forEach(function (row) {
-        if (row.style.display === "none") return;
-        const cb = row.querySelector("input[type='checkbox']");
-        if (cb) cb.checked = checked;
-      });
-    };
-
-    window.deleteSelectedKeys = async function (scope) {
-      clearInlineFeedbacks();
-      const fbId = window.getFeedbackIdByScope(scope);
-      if (!isAdmin()) return showErr("Chỉ tài khoản admin mới được xóa key.", fbId);
-      const listId = window.getListIdByScope(scope);
-      const checkedBoxes = Array.from(document.querySelectorAll("#" + listId + " input.key-cb-" + scope + ":checked"));
-      if (checkedBoxes.length === 0) return showErr("Hãy tích chọn ít nhất 1 key để xóa.", fbId);
-      if (!confirm("Xóa " + checkedBoxes.length + " key đã chọn khỏi kho?")) return;
-      try {
-        for (const cb of checkedBoxes) await deleteDoc(doc(db, "keys", cb.value));
-        showMsg("Đã xóa " + checkedBoxes.length + " key khỏi kho.", fbId);
-        await Promise.all([window.loadProducts(), window.loadBulkStock(), window.loadCtvStock()]);
-      } catch (e) { showErr("Lỗi xóa hàng loạt: " + e.message, fbId); }
-    };
-
-    window.loadBulkStock = async function () {
-      const validDocs = await fetchAndCleanUnsoldKeysByProduct(BULK_PRODUCT_ID);
-      const count = validDocs.length;
-      const badge = document.getElementById("bulkStockBadge");
-      if (badge) badge.textContent = "Kho sỉ: " + count + " key";
-      if (isAdmin()) {
-        const adminCountText = document.getElementById("adminBulkStockText");
-        const adminListEl = document.getElementById("adminBulkKeysList");
-        if (adminCountText) adminCountText.textContent = count + " key";
-        if (adminListEl) { adminListEl.innerHTML = validDocs.length === 0 ? "<div style='color:#94a3b8; font-size:13px;'>Kho tùy chọn trống.</div>" : window.buildKeyRowsHtml(validDocs, "bulk"); window.filterAdminKeys("bulk"); }
-      }
-    };
-
-    window.loadCtvStock = async function () {
-      const validDocs = await fetchAndCleanUnsoldKeysByProduct(CTV_PRODUCT_ID);
-      const count = validDocs.length;
-      const badge = document.getElementById("ctvStockBadge");
-      if (badge) badge.textContent = "Kho CTV: " + count + " key";
-      if (isAdmin()) {
-        const adminCountText = document.getElementById("adminCtvStockText");
-        const adminListEl = document.getElementById("adminCtvKeysList");
-        if (adminCountText) adminCountText.textContent = count + " key";
-        if (adminListEl) { adminListEl.innerHTML = validDocs.length === 0 ? "<div style='color:#94a3b8; font-size:13px;'>Kho CTV trống.</div>" : window.buildKeyRowsHtml(validDocs, "ctv"); window.filterAdminKeys("ctv"); }
-      }
-    };
-  </script>
-  <script type="module">
-    import {
-      doc, updateDoc, addDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    const core = window.__htheanhCore;
-    const {
-      db, BULK_PRODUCT_ID, BULK_MIN_QTY, BULK_UNIT_PRICE,
-      CTV_PRODUCT_ID, CTV_UNIT_PRICE,
-      isAdmin, canBuyCtv, requireLoginAction, getCleanUsername, clearInlineFeedbacks,
-      showMsg, showErr, getTimestampMs, formatPurchaseTime,
-      normalizeKeysLines, countKeysInText, logBalanceChange,
-      fetchAndCleanUnsoldKeysByProduct, renderProfileAndStats, updateSelectedPkgSummary
-    } = core;
-
-    function isExpiredKeyDoc(kData) {
-      const createdMs = getTimestampMs(kData && kData.createdAt);
-      return createdMs ? ((Date.now() - createdMs) >= (30 * 24 * 60 * 60 * 1000)) : false;
+    if (bulkBtn) {
+      bulkBtn.disabled = busy;
+      bulkBtn.textContent = busy ? "⏳ Đang xử lý..." : "Mua tùy chọn";
     }
+    if (ctvBtn) {
+      ctvBtn.disabled = busy;
+      ctvBtn.textContent = busy ? "⏳ Đang xử lý..." : "Mua Key CTV (330đ/key)";
+    }
+  }
 
-    window.loadProducts = async function () {
-      const gridEl = document.getElementById("pkgGridContainer");
-      const selectEl = document.getElementById("keyProdSelect");
-      const prevSelectedSelect = selectEl.value;
-      const [prodSnap, unsoldSnap] = await Promise.all([
-        getDocs(collection(db, "products")),
-        getDocs(query(collection(db, "keys"), where("sold", "==", false)))
-      ]);
-
-      const countByProduct = {};
-      for (const kDoc of unsoldSnap.docs) {
-        const kData = kDoc.data();
-        if (isExpiredKeyDoc(kData)) {
-          try { await deleteDoc(doc(db, "keys", kDoc.id)); } catch (e) {}
-          continue;
-        }
-        const pid = kData.productId || "";
-        countByProduct[pid] = (countByProduct[pid] || 0) + 1;
-      }
-
-      const nextCache = [];
-      if (prodSnap.empty) {
-        core.setProductsCache(nextCache);
-        gridEl.innerHTML = "<div style='grid-column:1/-1; color:#94a3b8; font-size:13px;'>Chưa có gói key nào.</div>";
-        selectEl.innerHTML = "<option value=''>-- Chưa có gói --</option>";
-        updateSelectedPkgSummary();
-        return;
-      }
-
+  // Lắng nghe tồn kho realtime: tự động cập nhật số key còn lại mà không cần F5
+  function startRealtimeCatalog() {
+    onSnapshot(collection(db, "products"), function (prodSnap) {
+      const nextList = [];
       prodSnap.forEach(function (d) {
         const p = d.data();
-        nextCache.push({
+        nextList.push({
           id: d.id,
           name: String(p.name || "Gói Key"),
-          price: Number(p.price || 0),
-          stock: countByProduct[d.id] || 0
+          price: Number(p.price || 0)
         });
       });
-      nextCache.sort(function (a, b) { return a.price - b.price; });
-      core.setProductsCache(nextCache);
+      nextList.sort(function (a, b) { return a.price - b.price; });
+      productsCache = nextList;
+      renderProductsUI();
+    });
 
-      let selectedId = core.getSelectedProductId();
-      if (!selectedId || !nextCache.some(function (x) { return x.id === selectedId; })) {
-        selectedId = nextCache[0].id;
-        core.setSelectedProductId(selectedId);
-      }
+    onSnapshot(query(collection(db, "keys"), where("sold", "==", false)), function (unsoldSnap) {
+      const counts = {};
+      const seenByProd = {};
+      unsoldSnap.forEach(function (d) {
+        const kd = d.data();
+        if (isExpiredKey(kd)) return;
+        const pid = kd.productId || "";
+        const code = String(kd.code || "").trim();
+        if (!code) return;
+        if (!seenByProd[pid]) seenByProd[pid] = new Set();
+        if (!seenByProd[pid].has(code)) {
+          seenByProd[pid].add(code);
+          counts[pid] = (counts[pid] || 0) + 1;
+        }
+      });
+      stockMap = counts;
 
-      let gridHtml = "";
-      let opts = "";
-      for (const item of nextCache) {
-        const isSel = item.id === selectedId ? "selected" : "";
-        gridHtml += `<div class="pkg-tile ${isSel}" data-id="${item.id}" onclick="selectProductTile('${item.id}')"><div class="pkg-tile-name">${item.name}</div><div class="pkg-tile-price">${item.price.toLocaleString("vi-VN")}đ</div><div class="pkg-tile-stock">Còn ${item.stock}</div></div>`;
-        opts += `<option value="${item.id}">${item.name} (${item.price.toLocaleString("vi-VN")}đ)</option>`;
-      }
-      gridEl.innerHTML = gridHtml;
-      selectEl.innerHTML = opts;
-      if (prevSelectedSelect && Array.from(selectEl.options).some(function (o) { return o.value === prevSelectedSelect; })) {
-        selectEl.value = prevSelectedSelect;
-      }
+      const bulkBadge = document.getElementById("bulkStockBadge");
+      const ctvBadge = document.getElementById("ctvStockBadge");
+      if (bulkBadge) bulkBadge.textContent = "Kho sỉ: " + (stockMap[BULK_PRODUCT_ID] || 0) + " key";
+      if (ctvBadge) ctvBadge.textContent = "Kho CTV: " + (stockMap[CTV_PRODUCT_ID] || 0) + " key";
+      renderProductsUI();
+    });
+  }
+
+  function renderProductsUI() {
+    const gridEl = document.getElementById("pkgGridContainer");
+    const selectEl = document.getElementById("keyProdSelect");
+    const prevSelect = selectEl ? selectEl.value : "";
+
+    if (!productsCache.length) {
+      if (gridEl) gridEl.innerHTML = "<div style='grid-column:1/-1; color:#94a3b8; font-size:13px;'>Chưa có gói key nào.</div>";
+      if (selectEl) selectEl.innerHTML = "<option value=''>-- Chưa có gói --</option>";
       updateSelectedPkgSummary();
-      if (isAdmin()) await window.loadAdminKeys();
-    };
-    window.loadAdminKeys = async function () {
-      if (!isAdmin()) return;
-      const listEl = document.getElementById("adminKeysList");
-      const productId = document.getElementById("keyProdSelect").value;
-      if (!productId) { listEl.innerHTML = "Chưa chọn gói."; return; }
-      const validDocs = await fetchAndCleanUnsoldKeysByProduct(productId);
-      listEl.innerHTML = validDocs.length === 0
-        ? "<div style='color:#94a3b8; font-size:13px;'>Gói này chưa có key chưa bán.</div>"
-        : window.buildKeyRowsHtml(validDocs, "pkg");
-      window.filterAdminKeys("pkg");
-    };
+      return;
+    }
 
-    window.deleteCurrentSelectedProduct = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ admin mới được xóa gói.", "adminImportFeedback");
-      const productId = document.getElementById("keyProdSelect").value;
-      const prod = core.getProductsCache().find(function (p) { return p.id === productId; });
-      if (!productId) return showErr("Chưa chọn gói.", "adminImportFeedback");
-      if (!confirm("Xóa gói \"" + (prod ? prod.name : productId) + "\" và toàn bộ key chưa bán?")) return;
-      try {
-        const keysSnap = await getDocs(query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false)));
-        for (const kDoc of keysSnap.docs) await deleteDoc(doc(db, "keys", kDoc.id));
-        await deleteDoc(doc(db, "products", productId));
-        showMsg("Đã xóa gói thành công.", "adminImportFeedback");
-        await window.loadProducts();
-      } catch (e) { showErr("Lỗi xóa gói: " + e.message, "adminImportFeedback"); }
-    };
+    if (!selectedProductId || !productsCache.some(function (x) { return x.id === selectedProductId; })) {
+      selectedProductId = productsCache[0].id;
+    }
 
-    window.deleteKey = async function (keyDocId, keyCode, scope) {
-      clearInlineFeedbacks();
-      const fbId = window.getFeedbackIdByScope(scope);
-      if (!isAdmin()) return showErr("Chỉ admin mới được xóa key.", fbId);
-      if (!confirm("Xóa key \"" + (keyCode || keyDocId) + "\"?")) return;
-      try {
-        await deleteDoc(doc(db, "keys", keyDocId));
-        showMsg("Đã xóa key.", fbId);
-        await Promise.all([window.loadProducts(), window.loadBulkStock(), window.loadCtvStock()]);
-      } catch (e) { showErr("Lỗi xóa key: " + e.message, fbId); }
-    };
+    let gridHtml = "";
+    let opts = "";
+    for (let i = 0; i < productsCache.length; i++) {
+      const item = productsCache[i];
+      const st = stockMap[item.id] || 0;
+      const isSel = item.id === selectedProductId ? "selected" : "";
+      gridHtml += `<div class="pkg-tile ${isSel}" data-id="${item.id}" onclick="selectProductTile('${item.id}')"><div class="pkg-tile-name">${item.name}</div><div class="pkg-tile-price">${item.price.toLocaleString("vi-VN")}đ</div><div class="pkg-tile-stock">Còn ${st}</div></div>`;
+      opts += `<option value="${item.id}">${item.name} (${item.price.toLocaleString("vi-VN")}đ)</option>`;
+    }
+    if (gridEl) gridEl.innerHTML = gridHtml;
+    if (selectEl) {
+      selectEl.innerHTML = opts;
+      if (prevSelect && Array.from(selectEl.options).some(function (o) { return o.value === prevSelect; })) {
+        selectEl.value = prevSelect;
+      }
+    }
+    updateSelectedPkgSummary();
+  }
 
-    window.importBulkKeys = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ admin mới được nhập key.", "adminBulkFeedback");
-      const raw = normalizeKeysLines(document.getElementById("bulkKeysTextarea").value);
-      const lines = raw ? raw.split("\n") : [];
-      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key.", "adminBulkFeedback");
-      try {
-        for (const k of lines) {
-          await addDoc(collection(db, "keys"), { productId: BULK_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
+  // Mua key tốc độ cao: chỉ lấy đúng số key cần thiết bằng limit(qty + 12)
+  async function purchaseKeysFastAtomic({ productId, productTitle, qty, unitPrice, errId, afterSuccessFn }) {
+    if (isPurchasing) return;
+    const curUser = auth.currentUser;
+    if (!curUser) return requireLoginAction(errId, "Vui lòng đăng nhập để mua key.");
+    if (qty > MAX_KEYS_PER_TX) {
+      return showErr("Mỗi lần mua tối đa " + MAX_KEYS_PER_TX + " key để tránh trùng lặp.", errId);
+    }
+
+    const totalPrice = qty * unitPrice;
+    if (currentBalance < totalPrice) {
+      return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
+    }
+
+    isPurchasing = true;
+    setBuyButtonsBusy(true, "⏳ Đang xuất " + qty + " key...");
+
+    try {
+      // Chỉ truy vấn đúng qty + 12 key chưa bán -> cực nhanh, không kéo cả kho
+      const fastSnap = await getDocs(
+        query(
+          collection(db, "keys"),
+          where("productId", "==", productId),
+          where("sold", "==", false),
+          limit(qty + 12)
+        )
+      );
+
+      const candidateDocs = [];
+      const seenCodes = new Set();
+      fastSnap.forEach(function (d) {
+        const kd = d.data();
+        if (isExpiredKey(kd)) return;
+        const c = String(kd.code || "").trim();
+        if (c && !seenCodes.has(c)) {
+          seenCodes.add(c);
+          candidateDocs.push(d);
         }
-        document.getElementById("bulkKeysTextarea").value = "";
-        showMsg("Đã nhập " + lines.length + " key vào kho Tùy chọn!", "adminBulkFeedback");
-        await window.loadBulkStock();
-      } catch (e) { showErr("Lỗi nhập key: " + e.message, "adminBulkFeedback"); }
-    };
+      });
 
-    window.importCtvKeys = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ admin mới được nhập key CTV.", "adminCtvStockFeedback");
-      const raw = normalizeKeysLines(document.getElementById("ctvKeysTextarea").value);
-      const lines = raw ? raw.split("\n") : [];
-      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key CTV.", "adminCtvStockFeedback");
-      try {
-        for (const k of lines) {
-          await addDoc(collection(db, "keys"), { productId: CTV_PRODUCT_ID, code: k, sold: false, createdAt: serverTimestamp() });
-        }
-        document.getElementById("ctvKeysTextarea").value = "";
-        showMsg("Đã nhập " + lines.length + " key vào kho CTV (330đ/key)!", "adminCtvStockFeedback");
-        await window.loadCtvStock();
-      } catch (e) { showErr("Lỗi nhập key CTV: " + e.message, "adminCtvStockFeedback"); }
-    };
-    window.buyCtvKeys = async function () {
-      clearInlineFeedbacks();
-      const errId = "ctvBuyFeedback";
-      if (!requireLoginAction(errId, "Vui lòng đăng nhập để mua key CTV.")) return;
-      const curUser = core.getCurrentUser();
-      const curBal = core.getCurrentBalance();
-      if (!canBuyCtv()) return showErr("Gói Key CTV (330đ/key) chỉ dành cho CTV!", errId);
-      const qty = Number(document.getElementById("ctvQtyInput").value);
-      if (!Number.isInteger(qty) || qty < 1) return showErr("Vui lòng nhập số lượng key nguyên từ 1 trở lên.", errId);
-      const totalPrice = qty * CTV_UNIT_PRICE;
-      if (curBal < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
+      if (candidateDocs.length < qty) {
+        throw new Error("Kho hiện chỉ còn " + candidateDocs.length + " key chưa bán.");
+      }
 
-      try {
-        const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(CTV_PRODUCT_ID);
-        if (validStockDocs.length < qty) {
-          await window.loadCtvStock();
-          return showErr("Kho CTV chỉ còn " + validStockDocs.length + " key.", errId);
+      const userRef = doc(db, "users", curUser.uid);
+      const txResult = await runTransaction(db, async function (tx) {
+        // PHA 1: Đọc user và tất cả key ứng viên trước
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists()) throw new Error("Không tìm thấy tài khoản người dùng.");
+        const uData = userSnap.data();
+        const serverBal = Number(uData.balance || 0);
+        if (serverBal < totalPrice) {
+          throw new Error("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.");
         }
-        const boughtKeys = [];
-        for (const keyDoc of validStockDocs.slice(0, qty)) {
-          boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), {
+
+        const keySnaps = await Promise.all(candidateDocs.map(function (d) { return tx.get(d.ref); }));
+        const selectedSnaps = [];
+        const uniqueSelected = new Set();
+
+        for (let i = 0; i < keySnaps.length; i++) {
+          if (selectedSnaps.length >= qty) break;
+          const ks = keySnaps[i];
+          if (!ks || !ks.exists()) continue;
+          const kd = ks.data();
+          if (kd.sold === true || isExpiredKey(kd)) continue;
+          const code = String(kd.code || "").trim();
+          if (!code || uniqueSelected.has(code)) continue;
+          uniqueSelected.add(code);
+          selectedSnaps.push({ snap: ks, code });
+        }
+
+        if (selectedSnaps.length < qty) {
+          throw new Error("Key vừa có người mua trước, vui lòng bấm mua lại.");
+        }
+
+        // PHA 2: Ghi đồng thời toàn bộ key đã bán + trừ tiền + tạo đơn
+        const nextBalance = serverBal - totalPrice;
+        const nowText = new Date().toLocaleString("vi-VN");
+        const boughtCodes = selectedSnaps.map(function (x) { return x.code; });
+
+        for (let i = 0; i < selectedSnaps.length; i++) {
+          tx.update(selectedSnaps[i].snap.ref, {
             sold: true,
             buyerId: curUser.uid,
             buyerEmail: curUser.email,
             soldAt: serverTimestamp()
           });
         }
-        const newBalance = curBal - totalPrice;
-        await updateDoc(doc(db, "users", curUser.uid), { balance: newBalance });
-        const productTitle = "Gói CTV " + qty + " key (330đ/key)";
-        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
-        const nowText = new Date().toLocaleString("vi-VN");
-        await addDoc(collection(db, "orders"), {
+
+        tx.update(userRef, {
+          balance: nextBalance,
+          totalSpent: Number(uData.totalSpent || 0) + totalPrice,
+          totalKeys: Number(uData.totalKeys || 0) + qty
+        });
+
+        const orderRef = doc(collection(db, "orders"));
+        tx.set(orderRef, {
           userId: curUser.uid,
           buyerEmail: curUser.email,
-          productId: CTV_PRODUCT_ID,
+          productId,
           productName: productTitle,
           price: totalPrice,
-          keyCode: joinedKeys,
+          keyCode: boughtCodes.join("\n"),
           purchasedAtText: nowText,
           createdAt: serverTimestamp()
         });
-        await logBalanceChange(curUser.uid, curUser.email, -totalPrice, newBalance, "Mua " + productTitle);
-        core.setCurrentBalance(newBalance);
-        document.getElementById("ctvQtyInput").value = "";
-        window.updateCtvCalc();
-        showMsg("Mua thành công " + qty + " key CTV (" + totalPrice.toLocaleString("vi-VN") + "đ)!", errId);
-        await Promise.all([window.loadCtvStock(), window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard()]);
-        openKeyModal(productTitle, joinedKeys, nowText);
-      } catch (e) { showErr("Lỗi khi mua key CTV: " + e.message, errId); }
-    };
 
-    window.buyBulkKeys = async function () {
-      clearInlineFeedbacks();
-      const errId = "bulkFeedback";
-      if (!requireLoginAction(errId, "Vui lòng đăng nhập để mua key tùy chọn.")) return;
-      const curUser = core.getCurrentUser();
-      const curBal = core.getCurrentBalance();
-      const qty = Number(document.getElementById("bulkQtyInput").value);
-      if (!Number.isInteger(qty) || qty < BULK_MIN_QTY) {
-        return showErr("Vui lòng nhập số lượng nguyên từ " + BULK_MIN_QTY + " key trở lên.", errId);
-      }
-      const totalPrice = qty * BULK_UNIT_PRICE;
-      if (curBal < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
+        return { boughtCodes, nextBalance, nowText };
+      });
 
-      try {
-        const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(BULK_PRODUCT_ID);
-        if (validStockDocs.length < qty) {
-          await window.loadBulkStock();
-          return showErr("Kho tùy chọn chỉ còn " + validStockDocs.length + " key.", errId);
-        }
-        const boughtKeys = [];
-        for (const keyDoc of validStockDocs.slice(0, qty)) {
-          boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), {
-            sold: true,
-            buyerId: curUser.uid,
-            buyerEmail: curUser.email,
-            soldAt: serverTimestamp()
-          });
-        }
-        const newBalance = curBal - totalPrice;
-        await updateDoc(doc(db, "users", curUser.uid), { balance: newBalance });
-        const productTitle = "Gói tùy chọn " + qty + " key (400đ/key)";
-        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
-        const nowText = new Date().toLocaleString("vi-VN");
-        await addDoc(collection(db, "orders"), {
-          userId: curUser.uid,
-          buyerEmail: curUser.email,
-          productId: BULK_PRODUCT_ID,
-          productName: productTitle,
-          price: totalPrice,
-          keyCode: joinedKeys,
-          purchasedAtText: nowText,
-          createdAt: serverTimestamp()
-        });
-        await logBalanceChange(curUser.uid, curUser.email, -totalPrice, newBalance, "Mua " + productTitle);
-        core.setCurrentBalance(newBalance);
-        document.getElementById("bulkQtyInput").value = "";
-        window.updateBulkCalc();
-        showMsg("Mua thành công " + qty + " key (" + totalPrice.toLocaleString("vi-VN") + "đ)!", errId);
-        await Promise.all([window.loadBulkStock(), window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard()]);
-        openKeyModal(productTitle, joinedKeys, nowText);
-      } catch (e) { showErr("Lỗi khi mua: " + e.message, errId); }
-    };
-    window.buySelectedProduct = async function () {
-      clearInlineFeedbacks();
-      const errId = "buyPkgFeedback";
-      if (!requireLoginAction(errId, "Vui lòng đăng nhập để mua key.")) return;
-      const curUser = core.getCurrentUser();
-      const curBal = core.getCurrentBalance();
-      const prod = core.getProductsCache().find(function (p) { return p.id === core.getSelectedProductId(); });
-      if (!prod) return showErr("Vui lòng chọn gói key trước.", errId);
-      const qty = Math.floor(Number(document.getElementById("selectedPkgQtyInput").value || 1));
-      if (!Number.isFinite(qty) || qty < 1) return showErr("Số lượng mua tối thiểu là 1 key.", errId);
-      const totalPrice = prod.price * qty;
-      if (curBal < totalPrice) return showErr("Số dư không đủ! Cần " + totalPrice.toLocaleString("vi-VN") + "đ.", errId);
+      // Hiện popup nhận key NGAY LẬP TỨC không chờ log phụ
+      const joinedKeys = txResult.boughtCodes.join("\n");
+      currentBalance = txResult.nextBalance;
+      document.getElementById("statBalance").textContent = currentBalance.toLocaleString("vi-VN") + "đ";
+      showMsg("Mua thành công " + productTitle + " (" + totalPrice.toLocaleString("vi-VN") + "đ)!", errId);
+      openKeyModal(productTitle, joinedKeys, txResult.nowText);
 
-      try {
-        const validStockDocs = await fetchAndCleanUnsoldKeysByProduct(prod.id);
-        if (validStockDocs.length === 0) {
-          await window.loadProducts();
-          return showErr("Gói này đã hết key trong kho!", errId);
-        }
-        if (validStockDocs.length < qty) {
-          await window.loadProducts();
-          return showErr("Gói này chỉ còn " + validStockDocs.length + " key trong kho.", errId);
-        }
-        const boughtKeys = [];
-        for (const keyDoc of validStockDocs.slice(0, qty)) {
-          boughtKeys.push(String(keyDoc.data().code || "").trim());
-          await updateDoc(doc(db, "keys", keyDoc.id), {
-            sold: true,
-            buyerId: curUser.uid,
-            buyerEmail: curUser.email,
-            soldAt: serverTimestamp()
-          });
-        }
-        const newBalance = curBal - totalPrice;
-        await updateDoc(doc(db, "users", curUser.uid), { balance: newBalance });
-        const orderTitle = qty > 1 ? (prod.name + " x" + qty) : prod.name;
-        const joinedKeys = boughtKeys.filter(Boolean).join("\n");
-        const nowText = new Date().toLocaleString("vi-VN");
-        await addDoc(collection(db, "orders"), {
-          userId: curUser.uid,
-          buyerEmail: curUser.email,
-          productId: prod.id,
-          productName: orderTitle,
-          price: totalPrice,
-          keyCode: joinedKeys,
-          purchasedAtText: nowText,
-          createdAt: serverTimestamp()
-        });
-        await logBalanceChange(curUser.uid, curUser.email, -totalPrice, newBalance, "Mua " + orderTitle);
-        core.setCurrentBalance(newBalance);
-        document.getElementById("selectedPkgQtyInput").value = "1";
-        showMsg("Mua thành công " + orderTitle + "!", errId);
-        await Promise.all([window.loadProducts(), window.loadOrders(), window.loadBalanceHistory(), window.loadLeaderboard()]);
-        openKeyModal(orderTitle, joinedKeys, nowText);
-      } catch (e) { showErr("Lỗi khi mua key: " + e.message, errId); }
-    };
+      if (typeof afterSuccessFn === "function") afterSuccessFn();
 
-    window.loadOrders = async function () {
-      const ordersEl = document.getElementById("ordersList");
-      const curUser = core.getCurrentUser();
-      if (!curUser) {
-        ordersEl.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Vui lòng đăng nhập để xem key đã mua.</div>";
-        return;
-      }
-      const snap = await getDocs(query(collection(db, "orders"), where("userId", "==", curUser.uid)));
-      let totalSpent = 0;
-      let totalKeys = 0;
-      if (snap.empty) {
-        ordersEl.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Bạn chưa mua key nào.</div>";
-        renderProfileAndStats(0, 0);
-        return;
-      }
-      const orderItems = [];
-      snap.forEach(function (d) {
-        const o = d.data();
-        const priceNum = Number(o.price || 0);
-        const keyStr = normalizeKeysLines(o.keyCode || "");
-        totalSpent += priceNum;
-        totalKeys += countKeysInText(keyStr);
-        orderItems.push({
-          sortMs: getTimestampMs(o.createdAt) || 0,
-          productName: o.productName || "Gói Key",
-          price: priceNum,
-          keyStr,
-          timeStr: o.purchasedAtText || formatPurchaseTime(o.createdAt)
+      // Ghi log biến động chạy nền
+      addDoc(collection(db, "balance_logs"), {
+        userId: curUser.uid,
+        userEmail: curUser.email || "",
+        amount: -totalPrice,
+        balanceAfter: txResult.nextBalance,
+        note: "Mua " + productTitle,
+        timeText: txResult.nowText,
+        createdAt: serverTimestamp()
+      }).catch(function () {});
+    } catch (e) {
+      showErr(e && e.message ? e.message : String(e), errId);
+    } finally {
+      isPurchasing = false;
+      setBuyButtonsBusy(false);
+    }
+  }
+  function syncAdminAccessUI() {
+    const adminTabBtn = document.getElementById("tabBtn_admin");
+    const adminPanel = document.getElementById("tabPanel_admin");
+    const roleSection = document.getElementById("adminRoleSection");
+    const adminOk = isAdmin();
+    if (adminTabBtn) adminTabBtn.style.display = adminOk ? "inline-block" : "none";
+    if (!adminOk && adminPanel && adminPanel.style.display === "block") switchTab("buy");
+    if (roleSection) roleSection.style.display = isRootAdmin() ? "block" : "none";
+  }
+
+  function renderProfileAndStats(uData) {
+    if (!currentUser) return;
+    const email = currentUser.email || "user";
+    const displayName = currentDisplayName || getCleanUsername("", email);
+    document.getElementById("avatarCircle").textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById("profileDisplayName").textContent = displayName;
+    document.getElementById("profileEmailSub").textContent = email.endsWith("@" + INTERNAL_DOMAIN) ? ("Tài khoản: " + displayName) : email;
+    document.getElementById("profileRoleBadge").textContent = isRootAdmin() ? "Chủ Hệ Thống" : (isAdmin() ? "Quản Trị Viên" : "Thành viên");
+
+    const ctvBadge = document.getElementById("profileCtvBadge");
+    if (ctvBadge) {
+      ctvBadge.style.display = (currentIsCtv || isAdmin()) ? "inline-block" : "none";
+      ctvBadge.textContent = isAdmin() ? "Admin / CTV" : "CTV";
+    }
+
+    document.getElementById("statBalance").textContent = currentBalance.toLocaleString("vi-VN") + "đ";
+    document.getElementById("statTotalDeposited").textContent = currentTotalDeposited.toLocaleString("vi-VN") + "đ";
+    if (uData && typeof uData.totalSpent === "number") {
+      document.getElementById("statTotalSpent").textContent = Number(uData.totalSpent).toLocaleString("vi-VN") + "đ";
+    }
+    if (uData && typeof uData.totalKeys === "number") {
+      document.getElementById("statTotalKeys").textContent = Number(uData.totalKeys).toLocaleString("vi-VN");
+    }
+  }
+
+  function updateSelectedPkgSummary() {
+    const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
+    const qtyInput = document.getElementById("selectedPkgQtyInput");
+    const sumEl = document.getElementById("selectedPkgSummary");
+    const totalEl = document.getElementById("selectedPkgTotal");
+    const btnEl = document.getElementById("buySelectedPkgBtn");
+
+    if (!prod) {
+      sumEl.textContent = "Chưa chọn gói"; totalEl.textContent = "0đ";
+      btnEl.disabled = true; return;
+    }
+    const st = stockMap[prod.id] || 0;
+    let qty = Math.floor(Number(qtyInput.value || 1));
+    if (!Number.isFinite(qty) || qty < 1) qty = 1;
+    if (st > 0 && qty > st) qty = st;
+    if (qty > MAX_KEYS_PER_TX) qty = MAX_KEYS_PER_TX;
+    qtyInput.value = String(qty);
+
+    sumEl.textContent = prod.name + " x" + qty;
+    totalEl.textContent = (prod.price * qty).toLocaleString("vi-VN") + "đ";
+    btnEl.disabled = st === 0 || isPurchasing;
+  }
+
+  window.selectProductTile = function (productId) {
+    selectedProductId = productId;
+    document.getElementById("buyPkgFeedback").style.display = "none";
+    document.querySelectorAll(".pkg-tile").forEach(function (el) {
+      el.classList.toggle("selected", el.getAttribute("data-id") === productId);
+    });
+    updateSelectedPkgSummary();
+  };
+
+  window.stepSelectedPkgQty = function (delta) {
+    const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
+    const errId = "buyPkgFeedback";
+    if (!prod) return showErr("Vui lòng chọn gói key trước.", errId);
+    const st = stockMap[prod.id] || 0;
+    if (st === 0) return showErr("Gói này hiện đã hết key trong kho.", errId);
+
+    const qtyInput = document.getElementById("selectedPkgQtyInput");
+    const next = Math.floor(Number(qtyInput.value || 1)) + delta;
+    if (next < 1) { qtyInput.value = "1"; updateSelectedPkgSummary(); return showErr("Số lượng tối thiểu là 1 key.", errId); }
+    if (next > st) { qtyInput.value = String(st); updateSelectedPkgSummary(); return showErr("Kho chỉ còn " + st + " key.", errId); }
+    if (next > MAX_KEYS_PER_TX) { qtyInput.value = String(MAX_KEYS_PER_TX); updateSelectedPkgSummary(); return showErr("Tối đa " + MAX_KEYS_PER_TX + " key mỗi lần mua.", errId); }
+    document.getElementById(errId).style.display = "none";
+    qtyInput.value = String(next); updateSelectedPkgSummary();
+  };
+
+  window.onSelectedPkgQtyInput = function () {
+    const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
+    const errEl = document.getElementById("buyPkgFeedback");
+    const rawVal = Number(document.getElementById("selectedPkgQtyInput").value);
+    const st = prod ? (stockMap[prod.id] || 0) : 0;
+    if (prod && st > 0 && rawVal > st) showErr("Kho chỉ còn " + st + " key, đã đặt về mức tối đa.", "buyPkgFeedback");
+    else if (errEl) errEl.style.display = "none";
+    updateSelectedPkgSummary();
+  };
+
+  window.updateBulkCalc = function () {
+    const qty = Number(document.getElementById("bulkQtyInput").value);
+    const calcEl = document.getElementById("bulkCalcText");
+    document.getElementById("bulkFeedback").style.display = "none";
+    if (!Number.isFinite(qty) || qty <= 0) { calcEl.textContent = "0đ"; return; }
+    calcEl.textContent = (qty * BULK_UNIT_PRICE).toLocaleString("vi-VN") + "đ" + (qty < BULK_MIN_QTY ? " (cần từ 20 key)" : "");
+  };
+
+  window.updateCtvCalc = function () {
+    const qty = Number(document.getElementById("ctvQtyInput").value);
+    const calcEl = document.getElementById("ctvCalcText");
+    document.getElementById("ctvBuyFeedback").style.display = "none";
+    if (!Number.isFinite(qty) || qty <= 0) { calcEl.textContent = "0đ"; return; }
+    calcEl.textContent = (qty * CTV_UNIT_PRICE).toLocaleString("vi-VN") + "đ";
+  };
+
+  window.buySelectedProduct = async function () {
+    clearInlineFeedbacks();
+    const errId = "buyPkgFeedback";
+    if (!requireLoginAction(errId, "Vui lòng đăng nhập để mua key.")) return;
+    const prod = productsCache.find(function (p) { return p.id === selectedProductId; });
+    if (!prod) return showErr("Vui lòng chọn gói key trước.", errId);
+    const qty = Math.floor(Number(document.getElementById("selectedPkgQtyInput").value || 1));
+    if (!Number.isFinite(qty) || qty < 1) return showErr("Số lượng mua tối thiểu là 1 key.", errId);
+
+    await purchaseKeysFastAtomic({
+      productId: prod.id,
+      productTitle: qty > 1 ? (prod.name + " x" + qty) : prod.name,
+      qty,
+      unitPrice: prod.price,
+      errId,
+      afterSuccessFn: function () { document.getElementById("selectedPkgQtyInput").value = "1"; }
+    });
+  };
+
+  window.buyBulkKeys = async function () {
+    clearInlineFeedbacks();
+    const errId = "bulkFeedback";
+    if (!requireLoginAction(errId, "Vui lòng đăng nhập để mua key tùy chọn.")) return;
+    const qty = Number(document.getElementById("bulkQtyInput").value);
+    if (!Number.isInteger(qty) || qty < BULK_MIN_QTY) return showErr("Vui lòng nhập số lượng nguyên từ " + BULK_MIN_QTY + " key trở lên.", errId);
+
+    await purchaseKeysFastAtomic({
+      productId: BULK_PRODUCT_ID,
+      productTitle: "Gói tùy chọn " + qty + " key (400đ/key)",
+      qty,
+      unitPrice: BULK_UNIT_PRICE,
+      errId,
+      afterSuccessFn: function () { document.getElementById("bulkQtyInput").value = ""; window.updateBulkCalc(); }
+    });
+  };
+
+  window.buyCtvKeys = async function () {
+    clearInlineFeedbacks();
+    const errId = "ctvBuyFeedback";
+    if (!requireLoginAction(errId, "Vui lòng đăng nhập để mua key CTV.")) return;
+    if (!canBuyCtv()) return showErr("Gói Key CTV (330đ/key) chỉ dành cho CTV!", errId);
+    const qty = Number(document.getElementById("ctvQtyInput").value);
+    if (!Number.isInteger(qty) || qty < 1) return showErr("Vui lòng nhập số lượng key nguyên từ 1 trở lên.", errId);
+
+    await purchaseKeysFastAtomic({
+      productId: CTV_PRODUCT_ID,
+      productTitle: "Gói CTV " + qty + " key (330đ/key)",
+      qty,
+      unitPrice: CTV_UNIT_PRICE,
+      errId,
+      afterSuccessFn: function () { document.getElementById("ctvQtyInput").value = ""; window.updateCtvCalc(); }
+    });
+  };
+
+  window.registerUser = async function () {
+    clearInlineFeedbacks();
+    const rawName = document.getElementById("emailInput").value.trim();
+    const pass = document.getElementById("passInput").value;
+    const authEmail = toAuthEmail(rawName);
+    const displayName = getCleanUsername(rawName, authEmail);
+    if (!authEmail) return showErr("Vui lòng nhập tên tài khoản.", "authFeedback");
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, authEmail, pass);
+      await setDoc(doc(db, "users", cred.user.uid), {
+        username: displayName, email: authEmail, isAdmin: false, isCtv: false,
+        balance: 0, totalDeposited: 0, totalSpent: 0, totalKeys: 0, createdAt: serverTimestamp()
+      });
+      showMsg("Đăng ký thành công tài khoản \"" + displayName + "\"!", "authFeedback");
+    } catch (e) { showErr("Lỗi đăng ký: " + e.message, "authFeedback"); }
+  };
+
+  window.loginUser = async function () {
+    clearInlineFeedbacks();
+    const rawName = document.getElementById("emailInput").value.trim();
+    const pass = document.getElementById("passInput").value;
+    const authEmail = toAuthEmail(rawName);
+    if (!authEmail) return showErr("Vui lòng nhập tên tài khoản.", "authFeedback");
+    try {
+      await signInWithEmailAndPassword(auth, authEmail, pass);
+      showMsg("Đăng nhập thành công!", "authFeedback");
+    } catch (e) { showErr("Lỗi đăng nhập: " + e.message, "authFeedback"); }
+  };
+
+  window.changeUserPassword = async function () {
+    const oldPass = document.getElementById("oldPassInput").value;
+    const newPass = document.getElementById("newPassInput").value;
+    if (!oldPass) return showErr("Vui lòng nhập mật khẩu cũ.", "passFeedback");
+    if (!newPass || newPass.length < 6) return showErr("Mật khẩu mới phải từ 6 ký tự trở lên.", "passFeedback");
+    if (!auth.currentUser || !auth.currentUser.email) return showErr("Vui lòng đăng nhập lại.", "passFeedback");
+    try {
+      const cred = EmailAuthProvider.credential(auth.currentUser.email, oldPass);
+      await reauthenticateWithCredential(auth.currentUser, cred);
+      await updatePassword(auth.currentUser, newPass);
+      document.getElementById("oldPassInput").value = ""; document.getElementById("newPassInput").value = "";
+      showMsg("Đổi mật khẩu thành công!", "passFeedback");
+    } catch (e) {
+      if (e && (e.code === "auth/wrong-password" || e.code === "auth/invalid-credential")) return showErr("Mật khẩu cũ không đúng!", "passFeedback");
+      showErr("Lỗi đổi mật khẩu: " + e.message, "passFeedback");
+    }
+  };
+
+  window.logoutUser = async function () {
+    if (!currentUser) return showErr("Bạn chưa đăng nhập tài khoản nào.", "authFeedback");
+    await signOut(auth);
+    location.reload();
+  };
+
+  window.loadOrders = async function () {
+    const ordersEl = document.getElementById("ordersList");
+    if (!currentUser) {
+      ordersEl.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Vui lòng đăng nhập để xem key đã mua.</div>";
+      return;
+    }
+    const snap = await getDocs(query(collection(db, "orders"), where("userId", "==", currentUser.uid)));
+    if (snap.empty) {
+      ordersEl.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Bạn chưa mua key nào.</div>";
+      return;
+    }
+    let totalSpent = 0, totalKeys = 0;
+    const orderItems = [];
+    snap.forEach(function (d) {
+      const o = d.data();
+      const priceNum = Number(o.price || 0);
+      const keyStr = normalizeKeysLines(o.keyCode || "");
+      totalSpent += priceNum;
+      totalKeys += countKeysInText(keyStr);
+      orderItems.push({
+        sortMs: getTimestampMs(o.createdAt) || 0,
+        productName: o.productName || "Gói Key",
+        price: priceNum,
+        keyStr,
+        timeStr: o.purchasedAtText || formatPurchaseTime(o.createdAt)
+      });
+    });
+    document.getElementById("statTotalSpent").textContent = totalSpent.toLocaleString("vi-VN") + "đ";
+    document.getElementById("statTotalKeys").textContent = totalKeys.toLocaleString("vi-VN");
+    orderItems.sort(function (a, b) { return b.sortMs - a.sortMs; });
+    ordersEl.innerHTML = orderItems.slice(0, 60).map(function (item) {
+      return `<div class="item"><div style="display:flex; justify-content:space-between; gap:8px;"><b>${item.productName}</b><span style="color:#facc15; font-weight:700;">${item.price.toLocaleString("vi-VN")}đ</span></div><div style="font-size:12px; color:#94a3b8; margin-top:4px;">🕒 ${item.timeStr}</div><div class="key-box">${item.keyStr}</div><button class="green" style="width:auto; margin:8px 0 0; padding:6px 12px; font-size:12.5px;" onclick="copyOrderKey('${encodeURIComponent(item.keyStr)}')">📋 Copy Key</button></div>`;
+    }).join("");
+  };
+
+  window.loadBalanceHistory = async function () {
+    const el = document.getElementById("balanceHistoryList");
+    if (!el) return;
+    if (!currentUser) {
+      el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Vui lòng đăng nhập để xem lịch sử biến động số dư.</div>";
+      return;
+    }
+    const snap = await getDocs(query(collection(db, "balance_logs"), where("userId", "==", currentUser.uid)));
+    if (snap.empty) {
+      el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có biến động số dư nào.</div>";
+      return;
+    }
+    const logs = [];
+    snap.forEach(function (d) {
+      const x = d.data();
+      logs.push({
+        sortMs: getTimestampMs(x.createdAt) || 0,
+        amount: Number(x.amount || 0),
+        balanceAfter: Number(x.balanceAfter || 0),
+        note: x.note || "Giao dịch",
+        timeText: x.timeText || formatPurchaseTime(x.createdAt)
+      });
+    });
+    logs.sort(function (a, b) { return b.sortMs - a.sortMs; });
+    el.innerHTML = logs.slice(0, 60).map(function (l) {
+      const isPlus = l.amount >= 0;
+      return `<div class="item" style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><div><div style="font-weight:700; font-size:13.5px;">${l.note}</div><div style="font-size:11.5px; color:#94a3b8; margin-top:3px;">🕒 ${l.timeText} • Số dư sau: ${l.balanceAfter.toLocaleString("vi-VN")}đ</div></div><div style="font-weight:800; color:${isPlus ? "#22c55e" : "#fb7185"}; white-space:nowrap;">${isPlus ? "+" : ""}${l.amount.toLocaleString("vi-VN")}đ</div></div>`;
+    }).join("");
+  };
+
+  window.loadLeaderboard = async function () {
+    const el = document.getElementById("leaderboardList");
+    if (!el) return;
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      const list = [];
+      usersSnap.forEach(function (uDoc) {
+        const u = uDoc.data();
+        const email = String(u.email || "").trim();
+        const uname = String(u.username || "").trim();
+        list.push({
+          uid: uDoc.id,
+          label: uname || getCleanUsername("", email) || uDoc.id,
+          spent: Number(u.totalSpent || 0),
+          keys: Number(u.totalKeys || 0),
+          balance: Number(u.balance || 0)
         });
       });
-      renderProfileAndStats(totalSpent, totalKeys);
-      orderItems.sort(function (a, b) { return b.sortMs - a.sortMs; });
-      ordersEl.innerHTML = orderItems.map(function (item) {
-        return `<div class="item"><div style="display:flex; justify-content:space-between; gap:8px;"><b>${item.productName}</b><span style="color:#facc15; font-weight:700;">${item.price.toLocaleString("vi-VN")}đ</span></div><div style="font-size:12px; color:#94a3b8; margin-top:4px;">🕒 ${item.timeStr}</div><div class="key-box">${item.keyStr}</div><button class="green" style="width:auto; margin:8px 0 0; padding:6px 12px; font-size:12.5px;" onclick="copyOrderKey('${encodeURIComponent(item.keyStr)}')">📋 Copy Key</button></div>`;
+      list.sort(function (a, b) { return b.spent !== a.spent ? (b.spent - a.spent) : (b.balance - a.balance); });
+      if (!list.length) { el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có thành viên nào.</div>"; return; }
+      el.innerHTML = list.slice(0, 20).map(function (u, idx) {
+        const medal = idx === 0 ? "🥇" : (idx === 1 ? "🥈" : (idx === 2 ? "🥉" : "#" + (idx + 1)));
+        const meTag = (currentUser && u.uid === currentUser.uid) ? " <span style='font-size:11px; color:#38bdf8;'>(Bạn)</span>" : "";
+        return `<div class="rank-row"><div><span class="rank-buyer">${medal} ${u.label}${meTag}</span><div style="font-size:12px; color:#94a3b8; margin-top:2px;">Đã mua ${u.keys} key • Số dư: <b style="color:#22c55e;">${u.balance.toLocaleString("vi-VN")}đ</b></div></div><div style="text-align:right; white-space:nowrap;"><div style="color:#facc15; font-weight:800;">${u.spent.toLocaleString("vi-VN")}đ</div><div style="font-size:11px; color:#94a3b8;">Tổng mua</div></div></div>`;
       }).join("");
-    };
+    } catch (e) { el.innerHTML = "<div style='color:#94a3b8; font-size:13px;'>Không tải được bảng xếp hạng.</div>"; }
+  };
+  async function findUserDocByInput(rawTarget) {
+    const usersSnap = await getDocs(collection(db, "users"));
+    const cleanInput = String(rawTarget || "").trim().toLowerCase();
+    const mappedEmail = toAuthEmail(rawTarget).toLowerCase();
+    for (const uDoc of usersSnap.docs) {
+      const uData = uDoc.data();
+      const uEmail = String(uData.email || "").toLowerCase();
+      const uName = String(uData.username || "").toLowerCase();
+      if (uEmail === cleanInput || (mappedEmail && uEmail === mappedEmail) || uName === cleanInput || uDoc.id.toLowerCase() === cleanInput) return uDoc;
+    }
+    return null;
+  }
 
-    window.loadBalanceHistory = async function () {
-      const el = document.getElementById("balanceHistoryList");
-      const curUser = core.getCurrentUser();
-      if (!el) return;
-      if (!curUser) {
-        el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Vui lòng đăng nhập để xem lịch sử biến động số dư.</div>";
+  async function loadAdminList() {
+    const box = document.getElementById("adminListBox");
+    if (!box) return;
+    const snap = await getDocs(collection(db, "users"));
+    const items = [];
+    snap.forEach(function (uDoc) {
+      const u = uDoc.data();
+      const email = String(u.email || "").trim().toLowerCase();
+      const label = String(u.username || u.email || uDoc.id).trim();
+      if (email === ROOT_ADMIN_EMAIL) items.push(`<span class="ctv-chip">👑 ${label} (Gốc)</span>`);
+      else if (u.isAdmin) {
+        const safeLabel = label.replace(/'/g, "");
+        items.push(`<span class="ctv-chip"><span>🛡️ ${label}</span><button class="red" style="width:auto; margin:0; padding:2px 7px; font-size:11px; border-radius:999px;" onclick="quickRemoveAdmin('${uDoc.id}', '${safeLabel}')">Xóa quyền</button></span>`);
+      }
+    });
+    box.innerHTML = items.length ? items.join("") : "<span style='color:#94a3b8;'>Chỉ có Admin gốc.</span>";
+  }
+
+  window.quickRemoveAdmin = async function (uid, label) {
+    if (!isRootAdmin() || !confirm("Xóa quyền Admin của \"" + label + "\"?")) return;
+    await updateDoc(doc(db, "users", uid), { isAdmin: false });
+    await loadAdminList();
+    showMsg("Đã xóa quyền Admin của \"" + label + "\".", "adminRoleFeedback");
+  };
+
+  window.adminSetAdminRole = async function (grantAdmin) {
+    clearInlineFeedbacks();
+    if (!isRootAdmin()) return showErr("Chỉ Admin gốc mới có quyền cấp hoặc xóa quyền Admin.", "adminRoleFeedback");
+    const rawTarget = document.getElementById("adminRoleTargetInput").value.trim();
+    if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID.", "adminRoleFeedback");
+    const targetDoc = await findUserDocByInput(rawTarget);
+    if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminRoleFeedback");
+    const uData = targetDoc.data();
+    const email = String(uData.email || "").trim().toLowerCase();
+    const label = String(uData.username || uData.email || targetDoc.id).trim();
+    if (!grantAdmin && email === ROOT_ADMIN_EMAIL) return showErr("Không thể xóa quyền Admin gốc.", "adminRoleFeedback");
+    await updateDoc(doc(db, "users", targetDoc.id), { isAdmin: Boolean(grantAdmin) });
+    document.getElementById("adminRoleTargetInput").value = "";
+    await loadAdminList();
+    showMsg(grantAdmin ? ("Đã cấp quyền Admin cho \"" + label + "\"!") : ("Đã xóa quyền Admin của \"" + label + "\"!"), "adminRoleFeedback");
+  };
+
+  window.loadCtvList = async function () {
+    const box = document.getElementById("ctvListBox");
+    if (!box) return;
+    const snap = await getDocs(query(collection(db, "users"), where("isCtv", "==", true)));
+    if (snap.empty) { box.innerHTML = "<span style='color:#94a3b8;'>Chưa có CTV nào.</span>"; return; }
+    let html = "";
+    snap.forEach(function (uDoc) {
+      const u = uDoc.data();
+      const label = String(u.username || u.email || uDoc.id).trim();
+      html += `<span class="ctv-chip"><span>⭐ ${label}</span><button class="red" style="width:auto; margin:0; padding:2px 7px; font-size:11px; border-radius:999px;" onclick="quickRemoveCtv('${uDoc.id}', '${label.replace(/'/g, "")}')">Gỡ</button></span>`;
+    });
+    box.innerHTML = html;
+  };
+
+  window.quickRemoveCtv = async function (uid, label) {
+    if (!isAdmin() || !confirm("Gỡ quyền CTV của \"" + label + "\"?")) return;
+    await updateDoc(doc(db, "users", uid), { isCtv: false });
+    await window.loadCtvList();
+    showMsg("Đã gỡ quyền CTV của \"" + label + "\".", "adminCtvFeedback");
+  };
+
+  window.adminSetCtvRole = async function (makeCtv) {
+    clearInlineFeedbacks();
+    if (!isAdmin()) return showErr("Chỉ admin mới có quyền quản lý CTV.", "adminCtvFeedback");
+    const rawTarget = document.getElementById("ctvTargetInput").value.trim();
+    if (!rawTarget) return showErr("Nhập tên tài khoản, Email hoặc UID.", "adminCtvFeedback");
+    const targetDoc = await findUserDocByInput(rawTarget);
+    if (!targetDoc) return showErr("Không tìm thấy tài khoản khớp với \"" + rawTarget + "\".", "adminCtvFeedback");
+    const uData = targetDoc.data();
+    const label = String(uData.username || uData.email || targetDoc.id).trim();
+    await updateDoc(doc(db, "users", targetDoc.id), { isCtv: Boolean(makeCtv) });
+    document.getElementById("ctvTargetInput").value = "";
+    await window.loadCtvList();
+    showMsg(makeCtv ? ("Đã thêm \"" + label + "\" làm CTV!") : ("Đã gỡ quyền CTV của \"" + label + "\"."), "adminCtvFeedback");
+  };
+
+  window.adminAddBalance = async function () {
+    clearInlineFeedbacks();
+    if (!isAdmin()) return showErr("Chỉ admin mới có quyền cộng số dư.", "adminBalFeedback");
+    const rawTarget = document.getElementById("targetUserInput").value.trim();
+    const amount = Number(document.getElementById("addAmountInput").value);
+    if (!rawTarget || !Number.isFinite(amount) || amount === 0) return showErr("Nhập tài khoản và số tiền hợp lệ.", "adminBalFeedback");
+    const targetDoc = await findUserDocByInput(rawTarget);
+    if (!targetDoc) return showErr("Không tìm thấy tài khoản.", "adminBalFeedback");
+    const uData = targetDoc.data();
+    const targetLabel = String(uData.username || uData.email || targetDoc.id).trim();
+
+    const res = await runTransaction(db, async function (tx) {
+      const uRef = doc(db, "users", targetDoc.id);
+      const uSnap = await tx.get(uRef);
+      const cur = uSnap.data();
+      const oldBal = Number(cur.balance || 0);
+      const nextBal = oldBal + amount;
+      const nextDep = amount > 0 ? (Number(cur.totalDeposited || 0) + amount) : Number(cur.totalDeposited || 0);
+      tx.update(uRef, { balance: nextBal, totalDeposited: nextDep });
+      return { oldBal, nextBal };
+    });
+
+    await addDoc(collection(db, "balance_logs"), {
+      userId: targetDoc.id, userEmail: uData.email || "", amount,
+      balanceAfter: res.nextBal, note: amount > 0 ? "Admin cộng số dư" : "Admin điều chỉnh số dư",
+      timeText: new Date().toLocaleString("vi-VN"), createdAt: serverTimestamp()
+    });
+    document.getElementById("addAmountInput").value = "";
+    showMsg("Đã cập nhật số dư cho " + targetLabel + ": " + res.oldBal.toLocaleString("vi-VN") + "đ -> " + res.nextBal.toLocaleString("vi-VN") + "đ", "adminBalFeedback");
+  };
+
+  window.adminResetBalance = async function () {
+    clearInlineFeedbacks();
+    if (!isAdmin()) return;
+    const rawTarget = document.getElementById("targetUserInput").value.trim();
+    const targetDoc = await findUserDocByInput(rawTarget);
+    if (!targetDoc) return showErr("Không tìm thấy tài khoản.", "adminBalFeedback");
+    const uData = targetDoc.data();
+    const oldBalance = Number(uData.balance || 0);
+    if (!confirm("Xóa toàn bộ số dư (" + oldBalance.toLocaleString("vi-VN") + "đ) về 0đ?")) return;
+    await updateDoc(doc(db, "users", targetDoc.id), { balance: 0 });
+    showMsg("Đã đặt số dư về 0đ.", "adminBalFeedback");
+  };
+
+  window.adminDeleteUser = async function () {
+    clearInlineFeedbacks();
+    if (!isAdmin()) return;
+    const rawTarget = document.getElementById("targetUserInput").value.trim();
+    const targetDoc = await findUserDocByInput(rawTarget);
+    if (!targetDoc || (currentUser && targetDoc.id === currentUser.uid)) return showErr("Không thể xóa tài khoản này.", "adminBalFeedback");
+    if (!confirm("Xóa người dùng này?")) return;
+    await deleteDoc(doc(db, "users", targetDoc.id));
+    document.getElementById("targetUserInput").value = "";
+    showMsg("Đã xóa người dùng.", "adminBalFeedback");
+  };
+
+  window.addProduct = async function () {
+    clearInlineFeedbacks();
+    if (!isAdmin()) return;
+    const name = document.getElementById("prodName").value.trim();
+    const price = Number(document.getElementById("prodPrice").value);
+    if (!name || price <= 0) return showErr("Nhập đủ tên gói và giá hợp lệ.", "adminProdFeedback");
+    await addDoc(collection(db, "products"), { name, price, createdAt: serverTimestamp() });
+    document.getElementById("prodName").value = ""; document.getElementById("prodPrice").value = "";
+    showMsg("Đã thêm gói hàng mới!", "adminProdFeedback");
+  };
+
+  window.deleteCurrentSelectedProduct = async function () {
+    clearInlineFeedbacks();
+    if (!isAdmin()) return;
+    const productId = document.getElementById("keyProdSelect").value;
+    if (!productId || !confirm("Xóa gói này và toàn bộ key chưa bán?")) return;
+    const keysSnap = await getDocs(query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false)));
+    const batch = writeBatch(db);
+    keysSnap.forEach(function (d) { batch.delete(d.ref); });
+    batch.delete(doc(db, "products", productId));
+    await batch.commit();
+    showMsg("Đã xóa gói thành công.", "adminImportFeedback");
+  };
+
+  async function importUniqueKeysBatch(productId, rawText, inputId, fbId, labelDesc) {
+    clearInlineFeedbacks();
+    if (!isAdmin()) return showErr("Chỉ admin mới được nhập key.", fbId);
+    const raw = normalizeKeysLines(rawText);
+    const parsedLines = raw ? raw.split("\n") : [];
+    const uniqueLines = deduplicateKeyList(parsedLines);
+    if (!uniqueLines.length) return showErr("Hãy nhập ít nhất 1 mã key.", fbId);
+
+    const existingSnap = await getDocs(query(collection(db, "keys"), where("productId", "==", productId)));
+    const existingCodes = new Set();
+    existingSnap.forEach(function (d) { const c = String(d.data().code || "").trim(); if (c) existingCodes.add(c); });
+
+    const toAdd = uniqueLines.filter(function (k) { return !existingCodes.has(k); });
+    const skippedCount = parsedLines.length - toAdd.length;
+    if (!toAdd.length) return showErr("Tất cả key đều đã tồn tại trong kho.", fbId);
+
+    // Nhập hàng loạt bằng writeBatch (450 key/lần) -> siêu nhanh, không đơ máy
+    for (let i = 0; i < toAdd.length; i += 450) {
+      const batch = writeBatch(db);
+      const slice = toAdd.slice(i, i + 450);
+      for (let j = 0; j < slice.length; j++) {
+        batch.set(doc(collection(db, "keys")), { productId, code: slice[j], sold: false, createdAt: serverTimestamp() });
+      }
+      await batch.commit();
+    }
+
+    document.getElementById(inputId).value = "";
+    showMsg("Đã nhập " + toAdd.length + " key mới vào " + labelDesc + (skippedCount > 0 ? (" (bỏ qua " + skippedCount + " key trùng)") : "") + "!", fbId);
+    await window.onOpenAdminTab();
+  }
+
+  window.importKeys = async function () {
+    const productId = document.getElementById("keyProdSelect").value;
+    if (!productId) return showErr("Hãy chọn gói hàng trước.", "adminImportFeedback");
+    await importUniqueKeysBatch(productId, document.getElementById("keysTextarea").value, "keysTextarea", "adminImportFeedback", "gói đã chọn");
+  };
+  window.importBulkKeys = async function () {
+    await importUniqueKeysBatch(BULK_PRODUCT_ID, document.getElementById("bulkKeysTextarea").value, "bulkKeysTextarea", "adminBulkFeedback", "kho Tùy chọn");
+  };
+  window.importCtvKeys = async function () {
+    await importUniqueKeysBatch(CTV_PRODUCT_ID, document.getElementById("ctvKeysTextarea").value, "ctvKeysTextarea", "adminCtvStockFeedback", "kho CTV");
+  };
+
+  function buildKeyRowsHtml(docsList, scope) {
+    return docsList.slice(0, 100).map(function (docSnap) {
+      const k = docSnap.data();
+      const codeText = String(k.code || "");
+      const safeCode = codeText.replace(/'/g, "");
+      return `<div class="key-row" data-code="${codeText.toLowerCase()}"><div class="key-left"><input type="checkbox" class="key-check key-cb-${scope}" value="${docSnap.id}" /><div><div class="key-code">${codeText}</div><div class="key-age">${formatKeyAgeText(k)}</div></div></div><button class="red" style="width:auto; margin:0; padding:6px 10px; font-size:12px;" onclick="deleteKey('${docSnap.id}', '${safeCode}', '${scope}')">Xóa</button></div>`;
+    }).join("") + (docsList.length > 100 ? `<div style="color:#94a3b8; font-size:12px; margin-top:6px;">Hiển thị 100/${docsList.length} key để tránh lag.</div>` : "");
+  }
+
+  window.loadAdminKeys = async function () {
+    if (!isAdmin()) return;
+    const productId = document.getElementById("keyProdSelect").value;
+    const listEl = document.getElementById("adminKeysList");
+    if (!productId) { listEl.innerHTML = "Chưa chọn gói."; return; }
+    const snap = await getDocs(query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false)));
+    const valid = snap.docs.filter(function (d) { return !isExpiredKey(d.data()); });
+    listEl.innerHTML = valid.length ? buildKeyRowsHtml(valid, "pkg") : "<div style='color:#94a3b8; font-size:13px;'>Gói này chưa có key chưa bán.</div>";
+  };
+
+  async function loadAdminPoolKeys(productId, countElId, listElId, scope) {
+    const snap = await getDocs(query(collection(db, "keys"), where("productId", "==", productId), where("sold", "==", false)));
+    const valid = snap.docs.filter(function (d) { return !isExpiredKey(d.data()); });
+    document.getElementById(countElId).textContent = valid.length + " key";
+    document.getElementById(listElId).innerHTML = valid.length ? buildKeyRowsHtml(valid, scope) : "<div style='color:#94a3b8; font-size:13px;'>Kho trống.</div>";
+  }
+
+  window.deleteKey = async function (keyDocId, keyCode, scope) {
+    if (!isAdmin() || !confirm("Xóa key \"" + (keyCode || keyDocId) + "\"?")) return;
+    await deleteDoc(doc(db, "keys", keyDocId));
+    await window.onOpenAdminTab();
+  };
+
+  window.filterAdminKeys = function (scope) {
+    const inputMap = { bulk: "bulkSearchInput", ctv: "ctvSearchInput", pkg: "pkgSearchInput" };
+    const listMap = { bulk: "adminBulkKeysList", ctv: "adminCtvKeysList", pkg: "adminKeysList" };
+    const kw = (document.getElementById(inputMap[scope]).value || "").trim().toLowerCase();
+    document.querySelectorAll("#" + listMap[scope] + " .key-row").forEach(function (row) {
+      row.style.display = (!kw || (row.getAttribute("data-code") || "").includes(kw)) ? "flex" : "none";
+    });
+  };
+
+  window.toggleSelectAll = function (scope, checked) {
+    const listMap = { bulk: "adminBulkKeysList", ctv: "adminCtvKeysList", pkg: "adminKeysList" };
+    document.querySelectorAll("#" + listMap[scope] + " .key-row").forEach(function (row) {
+      if (row.style.display !== "none") {
+        const cb = row.querySelector("input[type='checkbox']");
+        if (cb) cb.checked = checked;
+      }
+    });
+  };
+
+  window.deleteSelectedKeys = async function (scope) {
+    if (!isAdmin()) return;
+    const listMap = { bulk: "adminBulkKeysList", ctv: "adminCtvKeysList", pkg: "adminKeysList" };
+    const fbMap = { bulk: "adminBulkFeedback", ctv: "adminCtvStockFeedback", pkg: "adminPkgKeysFeedback" };
+    const checked = Array.from(document.querySelectorAll("#" + listMap[scope] + " input.key-cb-" + scope + ":checked"));
+    if (!checked.length) return showErr("Hãy tích chọn ít nhất 1 key.", fbMap[scope]);
+    if (!confirm("Xóa " + checked.length + " key đã chọn?")) return;
+    const batch = writeBatch(db);
+    checked.forEach(function (cb) { batch.delete(doc(db, "keys", cb.value)); });
+    await batch.commit();
+    showMsg("Đã xóa " + checked.length + " key.", fbMap[scope]);
+    await window.onOpenAdminTab();
+  };
+
+  window.onOpenAdminTab = async function () {
+    if (!isAdmin()) return;
+    await Promise.all([
+      loadAdminList(),
+      window.loadCtvList(),
+      window.loadAdminKeys(),
+      loadAdminPoolKeys(BULK_PRODUCT_ID, "adminBulkStockText", "adminBulkKeysList", "bulk"),
+      loadAdminPoolKeys(CTV_PRODUCT_ID, "adminCtvStockText", "adminCtvKeysList", "ctv")
+    ]);
+  };
+
+  startRealtimeCatalog();
+
+  onAuthStateChanged(auth, function (user) {
+    if (unsubUserDoc) { unsubUserDoc(); unsubUserDoc = null; }
+    currentUser = user;
+    const authBox = document.getElementById("authBox");
+
+    if (!user) {
+      currentDisplayName = ""; currentIsAdmin = false; currentIsCtv = false;
+      currentBalance = 0; currentTotalDeposited = 0;
+      authBox.style.display = "block";
+      document.getElementById("avatarCircle").textContent = "K";
+      document.getElementById("profileDisplayName").textContent = "Khách";
+      document.getElementById("profileRoleBadge").textContent = "Chưa đăng nhập";
+      document.getElementById("profileCtvBadge").style.display = "none";
+      document.getElementById("profileEmailSub").textContent = "Xem gói key tự do • Đăng nhập để mua hoặc quản lý";
+      document.getElementById("statBalance").textContent = "0đ";
+      document.getElementById("statTotalSpent").textContent = "0đ";
+      document.getElementById("statTotalKeys").textContent = "0";
+      document.getElementById("statTotalDeposited").textContent = "0đ";
+      syncAdminAccessUI();
+      return;
+    }
+
+    authBox.style.display = "none";
+    const userRef = doc(db, "users", user.uid);
+    unsubUserDoc = onSnapshot(userRef, async function (snap) {
+      const fallbackName = getCleanUsername("", user.email);
+      if (!snap.exists()) {
+        await setDoc(userRef, {
+          username: fallbackName, email: user.email, isAdmin: false, isCtv: false,
+          balance: 0, totalDeposited: 0, totalSpent: 0, totalKeys: 0, createdAt: serverTimestamp()
+        });
         return;
       }
-      try {
-        const snap = await getDocs(query(collection(db, "balance_logs"), where("userId", "==", curUser.uid)));
-        if (snap.empty) {
-          el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có biến động số dư nào.</div>";
-          return;
-        }
-        const logs = [];
-        snap.forEach(function (d) {
-          const x = d.data();
-          logs.push({
-            sortMs: getTimestampMs(x.createdAt) || 0,
-            amount: Number(x.amount || 0),
-            balanceAfter: Number(x.balanceAfter || 0),
-            note: x.note || "Giao dịch",
-            timeText: x.timeText || formatPurchaseTime(x.createdAt)
-          });
-        });
-        logs.sort(function (a, b) { return b.sortMs - a.sortMs; });
-        el.innerHTML = logs.map(function (l) {
-          const isPlus = l.amount >= 0;
-          return `<div class="item" style="display:flex; justify-content:space-between; align-items:center; gap:8px;"><div><div style="font-weight:700; font-size:13.5px;">${l.note}</div><div style="font-size:11.5px; color:#94a3b8; margin-top:3px;">🕒 ${l.timeText} • Số dư sau: ${l.balanceAfter.toLocaleString("vi-VN")}đ</div></div><div style="font-weight:800; color:${isPlus ? "#22c55e" : "#fb7185"}; white-space:nowrap;">${isPlus ? "+" : ""}${l.amount.toLocaleString("vi-VN")}đ</div></div>`;
-        }).join("");
-      } catch (e) { el.innerHTML = "<div style='color:#94a3b8; font-size:13px;'>Không tải được lịch sử biến động.</div>"; }
-    };
-    window.loadLeaderboard = async function () {
-      const el = document.getElementById("leaderboardList");
-      const curUser = core.getCurrentUser();
-      if (!el) return;
-      try {
-        const [ordersSnap, usersSnap] = await Promise.all([
-          getDocs(collection(db, "orders")),
-          getDocs(collection(db, "users"))
-        ]);
-        const byUser = {};
-        usersSnap.forEach(function (uDoc) {
-          const u = uDoc.data();
-          const email = String(u.email || "").trim();
-          const uname = String(u.username || "").trim();
-          byUser[uDoc.id] = {
-            uid: uDoc.id,
-            label: uname || getCleanUsername("", email) || uDoc.id,
-            spent: 0,
-            keys: 0,
-            balance: Number(u.balance || 0)
-          };
-        });
-        ordersSnap.forEach(function (d) {
-          const o = d.data();
-          const uid = o.userId || "unknown";
-          const rawBuyer = String(o.buyerEmail || "").trim();
-          if (!byUser[uid]) {
-            byUser[uid] = { uid, label: getCleanUsername(rawBuyer, rawBuyer) || uid, spent: 0, keys: 0, balance: 0 };
-          }
-          byUser[uid].spent += Number(o.price || 0);
-          byUser[uid].keys += countKeysInText(o.keyCode || "");
-        });
-        const list = Object.values(byUser).sort(function (a, b) {
-          return b.spent !== a.spent ? (b.spent - a.spent) : (b.balance - a.balance);
-        });
-        if (list.length === 0) {
-          el.innerHTML = "<div style='color:#94a3b8; font-size:13.5px;'>Chưa có thành viên nào.</div>";
-          return;
-        }
-        el.innerHTML = list.map(function (u, idx) {
-          const medal = idx === 0 ? "🥇" : (idx === 1 ? "🥈" : (idx === 2 ? "🥉" : "#" + (idx + 1)));
-          const meTag = (curUser && u.uid === curUser.uid) ? " <span style='font-size:11px; color:#38bdf8;'>(Bạn)</span>" : "";
-          return `<div class="rank-row"><div><span class="rank-buyer">${medal} ${u.label}${meTag}</span><div style="font-size:12px; color:#94a3b8; margin-top:2px;">Đã mua ${u.keys} key • Số dư: <b style="color:#22c55e;">${u.balance.toLocaleString("vi-VN")}đ</b></div></div><div style="text-align:right; white-space:nowrap;"><div style="color:#facc15; font-weight:800;">${u.spent.toLocaleString("vi-VN")}đ</div><div style="font-size:11px; color:#94a3b8;">Tổng mua</div></div></div>`;
-        }).join("");
-      } catch (e) { el.innerHTML = "<div style='color:#94a3b8; font-size:13px;'>Không tải được bảng xếp hạng: " + e.message + "</div>"; }
-    };
-
-    window.addProduct = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ admin mới được thêm gói.", "adminProdFeedback");
-      const name = document.getElementById("prodName").value.trim();
-      const price = Number(document.getElementById("prodPrice").value);
-      if (!name || !price || price <= 0) return showErr("Nhập đủ tên gói và giá hợp lệ.", "adminProdFeedback");
-      try {
-        await addDoc(collection(db, "products"), { name, price, createdAt: serverTimestamp() });
-        document.getElementById("prodName").value = "";
-        document.getElementById("prodPrice").value = "";
-        showMsg("Đã thêm gói hàng mới!", "adminProdFeedback");
-        await window.loadProducts();
-      } catch (e) { showErr("Lỗi thêm gói: " + e.message, "adminProdFeedback"); }
-    };
-
-    window.importKeys = async function () {
-      clearInlineFeedbacks();
-      if (!isAdmin()) return showErr("Chỉ admin mới được nhập key.", "adminImportFeedback");
-      const productId = document.getElementById("keyProdSelect").value;
-      const raw = normalizeKeysLines(document.getElementById("keysTextarea").value);
-      const lines = raw ? raw.split("\n") : [];
-      if (!productId) return showErr("Hãy chọn gói hàng trước.", "adminImportFeedback");
-      if (lines.length === 0) return showErr("Hãy nhập ít nhất 1 mã key.", "adminImportFeedback");
-      try {
-        for (const k of lines) {
-          await addDoc(collection(db, "keys"), { productId, code: k, sold: false, createdAt: serverTimestamp() });
-        }
-        document.getElementById("keysTextarea").value = "";
-        showMsg("Đã nhập thành công " + lines.length + " key!", "adminImportFeedback");
-        await window.loadProducts();
-      } catch (e) { showErr("Lỗi nhập key: " + e.message, "adminImportFeedback"); }
-    };
-  </script>
+      const uData = snap.data();
+      currentDisplayName = String(uData.username || fallbackName).trim() || fallbackName;
+      currentIsAdmin = Boolean(uData.isAdmin);
+      currentIsCtv = Boolean(uData.isCtv);
+      currentBalance = Number(uData.balance || 0);
+      currentTotalDeposited = Number(uData.totalDeposited || 0);
+      syncAdminAccessUI();
+      renderProfileAndStats(uData);
+    });
+  });
+</script>
 </body>
 </html>
